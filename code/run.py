@@ -1,5 +1,4 @@
 from Simulation import Simulation
-from Elements import Stimulus
 from Learning import RFSTDP
 #
 # 
@@ -8,10 +7,10 @@ from matplotlib import pyplot as plt
 ###
 if __name__ == '__main__':
     sim = Simulation(total_time= 0.1, dt = 0.001)
-    group = sim.NeuronGroup(100, connection_chance= 1/35,
+    group = sim.NeuronGroup(100, connection_chance= 1/10,
                             online_learning_rule = None,
                             save_gif = False,
-                            base_current = 20000)
+                            base_current = 5000)
     # Stimulus
     stim1 = sim.Stimulus(lambda t : 5000)
     stim2 = sim.Stimulus(lambda t : 5000 *np.sin(5*t))
