@@ -17,8 +17,8 @@ class Simulation(object):
         G = NeuronGroup(population, self.total_timepoints, self.dt, **kwargs)
         self.objects.add(G)
         # MNote: I am watching you:
-        if G.online_learning_rule:
-            self.reward_based = G.online_learning_rule.reward_based
+        # if G.online_learning_rule:
+        #     self.reward_based = G.online_learning_rule.reward_based
         return G
 
     def Stimulus(self, output):
@@ -26,6 +26,12 @@ class Simulation(object):
         self.objects.add(stim)
         return stim
 
+    def add(self, obj):
+        self.objects.add(obj)
+        # if isinstance(obj, NeuronGroup):
+        #     if G.online_learning_rule:
+        #         self.reward_based = G.online_learning_rule.reward_based
+                
     def step(self):
         for obj in sorted(self.objects, key= lambda obj: obj.order):
             obj.step()
