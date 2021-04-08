@@ -1,0 +1,312 @@
+from abc import ABCMeta, abstractmethod, ABC
+import random
+import warnings
+from itertools import count
+
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+import cv2 
+import PIL
+
+class NeuronType(ABC):
+    def __init__(self, dt):
+        self.dt = dt
+        self.mode = None
+
+class IF(NeuronType):
+    def __init__(self, dt, Cm = 0.1):
+        """
+        Simple Integrate-and-Fire Neural Model:
+        Assumes a fully-insulated memberane with resistance approaching infinity
+        """
+        super().__init__(dt)
+        self.Cm = Cm #uF
+        self.mode = 'if'
+
+    def __call__(self, current, timestep, potential):
+        #TODO: Undefined variable 'timepoint'
+        pass #return (timestep * current[timepoint])/self.Cm
+
+
+class LIF(NeuronType):
+    def __init__(self, dt, Rm = 1, Cm = 0.1):
+        """
+        Leaky Integrate-and-Fire Neural Model
+        """
+        super().__init__(dt)
+        self.Rm = Rm #ohm
+        self.Cm = Cm #uF
+        self.tau_m = Rm*Cm
+        self.mode = 'lif'
+
+    def __call__(self, current, previous_potential):
+        return (-previous_potential+current*self.Rm) / self.tau_m* self.dt
+
+
+class Izhikevich(NeuronType):
+    def __init__(self, dt, u_rest=-68, a=0.02, b=0.2, c =-65, d=2,
+                 c1=0.04, c2=5, c3=140, c4=1, c5=1, v_rest=30):
+        """Izhikevich Neural Model"""
+        super().__init__(dt)
+        self.c = c  #mv
+        self.d = d  #mv
+        self.c1 = c1    #mv/ms
+        self.c2 = c2    #1/ms
+        self.c3 = c3    #mv/ms
+        self.c4 = c4    #1/ms
+        self.c5 = c5    #mv.ohm/(ms^2.A)
+        self.a = a  # dimless
+        self.b = b  # dimless
+        self.mode = 'izh'
+        self.u_rest = u_rest
+
+    def __call__(self, current, timestep, last_spike_timepoint, v_init, recovery):
+        v = v_init
+        for timepoint in range(last_spike_timepoint, timestep + 1):
+            v += self.c1*(v**2)\
+                + self.c2*v+self.c3-self.c4*recovery+self.c5*current[timepoint]
+            recovery += self.a*(self.b*v-recovery)
+        return v, recovery
+
+
+class Neuron(object):
+    _ids = count(0)
+    def __init__(self, total_timepoints, dt, model,
+                 neurotransmitter = 'excitatory', tau_ref = 0.002, u_rest = -68,
+                 u_thresh = +30, save_potential_history = False,
+                 save_current_history=False):
+        """
+        Define a new Neuron object
+        Args:
+
+        """
+        self.id = next(self._ids)
+        self.total_timepoints = total_timepoints
+        self.model = model
+        self.neurotransmitter = neurotransmitter
+        ### TODO: add dt to __init__ => tauref = teu_ref/ dt
+        self.tau_ref = tau_ref / dt #s => timepoints # refractory period
+        self.u_rest = u_rest #mv
+        self.u_thresh = u_thresh #mv
+        self.u = self.u_rest
+        self.save_potential = save_potential_history
+        self.save_current = save_current_history
+        self.open = True
+        if self.save_current:
+            self.current_history = np.zeros(total_timepoints)
+        self.spike_train =  np.zeros(total_timepoints, dtype = np.bool)
+        self.spike_timepoints = []
+        self.last_spike_timepoint = 0
+        if self.save_potential:
+            self.potential = np.zeros(total_timepoints)
+        self.connected_to_external_source = False
+        self.current = 0
+        self.timestep = 0
+        if self.model.mode == 'izh':
+            self.recovery = self.model.u_rest*self.model.b
+        self.refactory_time = 0
+
+    def step(self):
+        assert self.timestep < self.total_timepoints, "Simulation interval has finished!"
+        # Check refactory interval
+        if not self.open:
+            if self.refactory_time < self.tau_ref - 1:
+                self.refactory_time += 1
+            else:
+                self.open = True
+        else:
+            # Update
+            if self.model.mode == 'lif':
+                self.u += self.model(self.current, self.u)
+            if self.model.mode == 'izh':
+                # TODO:
+                self.u, self.recovery = self.model(self.current_history, self.timestep, self.last_spike_timepoint, self.u, self.recovery)
+            #TODO: add save history (include both)
+            # Save potential history
+            if self.save_current:
+                self.current_history[self.timestep] = self.current
+            if self.save_potential:
+                self.potential[self.timestep] = self.u
+            # Spike
+            if self.u >= self.u_thresh:
+                self.spike_timepoints.append(self.timestep)
+                self.spike_train[self.timestep] = True
+                self.open = False
+                self.refactory_time = 0 
+                if self.model.mode == 'izh':
+                    self.recovery += self.model.d
+                self.u = self.u_rest
+        # Empty neuron's current
+        self.current = 0
+
+    @property
+    def spike(self):
+        return self.spike_train[self.timestep - 1]
+
+
+    def display_spikes(self):
+        spike_train = self.spike_train.astype(str)
+        spike_train[spike_train=='True'] = '|'
+        spike_train[spike_train=='False'] =  " "
+        return ''.join(np.array2string(spike_train).split("'")[1:-1:2])
+
+
+class NeuronGroup(object):
+    _ids = count(0)
+    order = 1
+    def __init__(self, population, total_timepoints, dt, neuron_model = LIF,
+                 connection_chance=1/10, inhibition_rate= 2/10,
+                 base_current = 50, online_learning_rule = None,
+                 save_gif = False,
+                 ):
+        """
+        Parameters
+        ----------
+        online_learning_rule: a Learning class
+
+        """
+        self.id = next(self._ids)
+        self.dt = dt
+        self.total_timepoints = total_timepoints
+        self.population = population
+        self.base_current = base_current
+        self.online_learning_rule = online_learning_rule(dt) if online_learning_rule is not None else None
+        self.save_gif = save_gif
+        if save_gif:
+            warnings.warn('WARNING: "save_gif" is set to True, it can considerably slow down the simulation process. To see the result use "save_gif_to" function after training')
+            self.images = []
+        self.neurons = {
+            Neuron(total_timepoints, dt, model = neuron_model(dt = dt), 
+                   neurotransmitter = 'excitatory' if random.random() > inhibition_rate else 'inhibitory')
+            for _ in range(self.population)} 
+        self.network = nx.DiGraph()
+        self.network.add_nodes_from(self.neurons)
+        for PreSN in self.network.nodes:
+            for PostSN in self.network.nodes:
+                if PreSN != PostSN:
+                    if random.random() < connection_chance:
+                        self.network.add_edge(PreSN, PostSN, weight = np.random.randn(1))
+        self.pos = None
+        self.timestep = 0
+ 
+    def step(self):
+        self.active_neurons = set()
+        for neuron in self.neurons:
+            neuron.timestep = self.timestep
+            neuron.step()
+            if neuron.spike:
+                self.active_neurons.add(neuron)
+ 
+        for neuron in self.active_neurons:
+            for preSN, postSN, weight in self.network.out_edges(neuron, data = 'weight'):
+                if postSN.open:
+                    postSN.current += (-1 if preSN.neurotransmitter == 'inhibitory' else +1) * self.base_current * weight
+            if self.online_learning_rule:
+                self.online_learning_rule(self.network, neuron)
+ 
+ 
+        if self.save_gif:
+            fig, _ = self.draw_graph()
+            self.images.append(self._fig_to_PIL_image(fig))
+    
+    ### Visualization
+    def set_pos(self):
+        input_neurons = set()
+        for neuron in self.neurons:
+            if neuron.connected_to_external_source:
+                input_neurons.add(neuron)
+        self.pos = {}
+        for y, neuron in enumerate(input_neurons):
+            self.pos[neuron] = (0, (y+1) / (len(input_neurons)+1))
+        last_layer = input_neurons
+        for x in range(1, len(self.network.nodes())):
+            counted_neurons = set(self.pos.keys()) 
+            next_layer = set()
+            for neuron in last_layer:
+                next_layer.update(self.network.successors(neuron))
+            new_neurons = next_layer - counted_neurons
+            if new_neurons == set():
+                break
+            else:
+                for y, neuron in enumerate(new_neurons):
+                    self.pos[neuron] = (x, (y+1)/(len(new_neurons)+1))
+            last_layer = next_layer
+    
+    def draw_graph(self, display_ids = False):
+        # Set graph position 
+        if not self.pos:
+            self.set_pos()
+ 
+        fig, ax = plt.subplots(figsize=(10,8))
+        nx.draw_networkx_edges(self.network, pos=self.pos, ax=ax, edge_color="gray")
+        inactive_neurons = nx.draw_networkx_nodes(self.network, pos=self.pos, ax=ax,
+            nodelist=set(self.network.nodes()) - (self.active_neurons),
+            node_color="gray",)
+        inactive_neurons.set_edgecolor("black")
+        active_neurons = nx.draw_networkx_nodes(self.network, pos=self.pos, ax = ax,
+                                             nodelist=self.active_neurons,
+                                             node_color='blue',)
+        active_neurons.set_edgecolor("black")
+        if display_ids:
+            nx.draw_networkx_labels(self.network, pos = self.pos, ax = ax,
+                labels = {neuron: neuron.id for neuron in self.network.nodes})
+        return fig, ax
+            
+    def _fig_to_PIL_image(self, fig):
+        fig.savefig("test.jpg")
+        img = cv2.imread("test.jpg")
+        return PIL.Image.fromarray(img)
+ 
+    def save_gif_to(self, path, **kwargs):
+        assert self.save_gif, "No gif has been saved during the simulation. To use this function you must set 'save_gif' to True"
+        frame0 = self.images.pop(0)
+        frame0.save(path, save_all=True, append_images=self.images, **kwargs)
+ 
+    def display_spikes(self):
+        spike_train = ' id\n' + '=' * 5 + '╔' + '═' * self.total_timepoints + '╗\n'
+        for neuron in self.neurons:
+            spike_train += str(neuron.id) + ' ' * (5 - len(str(neuron.id))) \
+            + '║' + neuron.display_spikes() + '║\n'  
+        spike_train +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
+        print(spike_train)
+
+
+class Stimulus(object):
+    _ids = count(0)
+    order = 0
+    def __init__(self, output, dt):
+        """
+        Parameters
+        ----------
+        output: function
+        A function that determines the output of the Stimulus
+        in a specific timestep.
+        examples:
+        output = lambda t: np.sin(2 * t)
+        output = lambda t: 2
+
+        Returns
+        -------
+        Returns the value of output if no connection is set.
+        otherwise, sends the value to the connection (returns None).
+        """
+        self.output = output
+        self.connection = None
+        self.id = next(self._ids)
+        self.timestep = 0
+        self.dt = dt
+
+    def connect(self, connection):
+        connection.connected_to_external_source = True
+        self.connection = connection
+
+    def step(self):
+        if self.connection is None:
+            warnings.warn(f"WARNING: Stimulus (id: {self.id}) has not connected to any object!")
+            return self.output(self.timestep * self.dt)
+        self.connection.current += self.output(self.timestep * self.dt)
+
+    @property
+    def value(self):
+        return self.output(self.timestep * self.dt)
