@@ -170,6 +170,7 @@ class NeuronGroup(object):
         self.dt = dt
         self.total_timepoints = total_timepoints
         self.population = population
+        self.connection_chance = connection_chance
         self.base_current = base_current
         self.online_learning_rule = online_learning_rule(dt) if online_learning_rule is not None else None
         self.save_gif = save_gif
@@ -180,16 +181,31 @@ class NeuronGroup(object):
             Neuron(total_timepoints, dt, model = neuron_model(dt = dt), 
                    neurotransmitter = 'excitatory' if random.random() > inhibition_rate else 'inhibitory')
             for _ in range(self.population)} 
+        # Graph
+        self._define_network_graph()
+        self.pos = None
+        self.timestep = 0
+
+    def _generate_new_graph(self):
         self.network = nx.DiGraph()
         self.network.add_nodes_from(self.neurons)
         for PreSN in self.network.nodes:
             for PostSN in self.network.nodes:
                 if PreSN != PostSN:
-                    if random.random() < connection_chance:
+                    if random.random() < self.connection_chance:
                         self.network.add_edge(PreSN, PostSN, weight = np.random.randn(1))
-        self.pos = None
-        self.timestep = 0
- 
+
+    def _define_network_graph(self):
+        self._generate_new_graph()
+        find_single_graph = len(list(nx.weakly_connected_components(self.network))) == 1
+        if not find_single_graph:
+            for _ in range(20):
+                self._generate_new_graph()
+                find_single_graph = len(list(nx.weakly_connected_components(self.network))) == 1
+                if find_single_graph:
+                    break
+        assert find_single_graph, f"Couldn't make a single graph. Please increase the connection chance"
+
     def step(self):
         self.active_neurons = set()
         for neuron in self.neurons:
@@ -205,11 +221,22 @@ class NeuronGroup(object):
             if self.online_learning_rule:
                 self.online_learning_rule(self.network, neuron)
  
- 
         if self.save_gif:
             fig, _ = self.draw_graph()
             self.images.append(self._fig_to_PIL_image(fig))
     
+
+    def get_input_output(self, N_input_neurons, N_output_neurons):
+        input_neurons = random.sample(self.network.nodes(), N_input_neurons)
+        processed_neurons = input_neurons.copy()
+        for neuron in processed_neurons:
+            successors = self.network.successors(neuron)
+            for successor in successors:
+                if successor not in set(processed_neurons):
+                    processed_neurons.append(successor)
+        output_neurons = processed_neurons[-N_output_neurons:]
+        return input_neurons, output_neurons
+
     ### Visualization
     def set_pos(self):
         input_neurons = set()
@@ -232,7 +259,11 @@ class NeuronGroup(object):
                 for y, neuron in enumerate(new_neurons):
                     self.pos[neuron] = (x, (y+1)/(len(new_neurons)+1))
             last_layer = next_layer
-    
+        not_in_input_successors =set(self.network.nodes()) - set(self.pos.keys()) 
+        if not_in_input_successors:
+            for y, neuron in enumerate(not_in_input_successors):
+                    self.pos[neuron] = (x, (y+1)/(len(not_in_input_successors)+1))
+
     def draw_graph(self, display_ids = False):
         # Set graph position 
         if not self.pos:

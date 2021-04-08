@@ -16,7 +16,6 @@ class Simulation(object):
     def NeuronGroup(self, population, **kwargs):
         G = NeuronGroup(population, self.total_timepoints, self.dt, **kwargs)
         self.objects.add(G)
-        # MNote: I am watching you:
         # if G.online_learning_rule:
         #     self.reward_based = G.online_learning_rule.reward_based
         return G

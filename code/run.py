@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 ###
 if __name__ == '__main__':
     sim = Simulation(total_time= 0.1, dt = 0.001)
-    group = sim.NeuronGroup(100, connection_chance= 1/20,
+    group = sim.NeuronGroup(100, connection_chance= 1/35,
                             online_learning_rule = None,
                             save_gif = False,
                             base_current = 20000)
@@ -16,15 +16,12 @@ if __name__ == '__main__':
     stim1 = sim.Stimulus(lambda t : 5000)
     stim2 = sim.Stimulus(lambda t : 5000 *np.sin(5*t))
     stim3 = sim.Stimulus(lambda t : 5000 * np.log(t + 1))
-    # Input neurons
-    neurons_list = list(group.neurons)
-    input_neuron1 =  neurons_list[0]
-    input_neuron2 =  neurons_list[1]
-    input_neuron3 =  neurons_list[2]
+    # Input - output neurons
+    input_neurons, output_neurons = group.get_input_output(3, 1)
     # Connect
-    stim1.connect(input_neuron1)
-    stim2.connect(input_neuron2)
-    stim3.connect(input_neuron3)
+    stim1.connect(input_neurons[0])
+    stim2.connect(input_neurons[1])
+    stim3.connect(input_neurons[2])
     # Run
     sim.run()
     # Learning
