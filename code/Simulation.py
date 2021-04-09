@@ -39,13 +39,13 @@ class Simulation(object):
                 obj.online_learning_rule.set_reward()
         self.timestep += 1
 
-    def run(self, verbose = 1):
+    def run(self, verbose = 2):
         if verbose == 0:
             for _ in range(self.total_timepoints):
                 self.step()
         else:
             start_time = time.time()
-            for _ in tqdm(range(self.total_timepoints)):
+            for _ in range(self.total_timepoints) if verbose==1 else tqdm(range(self.total_timepoints)):
                 self.step()
             run_time = time.time() - start_time
             print(f"Simulation finished in {round(run_time,2)}s")
