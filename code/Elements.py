@@ -14,6 +14,7 @@ class NeuronType(ABC):
         self.dt = dt
         self.mode = None
 
+
 class IF(NeuronType):
     def __init__(self, dt, Cm = 0.1):
         """
@@ -234,6 +235,7 @@ class NeuronGroup(object):
 
     def get_input_output(self, N_input_neurons, N_output_neurons):
         input_neurons = random.sample(self.network.nodes(), N_input_neurons)
+        input_neurons = sorted(input_neurons, key = lambda x: x.id)
         processed_neurons = input_neurons.copy()
         for neuron in processed_neurons:
             successors = self.network.successors(neuron)
@@ -241,9 +243,10 @@ class NeuronGroup(object):
                 if successor not in set(processed_neurons):
                     processed_neurons.append(successor)
         output_neurons = processed_neurons[-N_output_neurons:]
+        output_neurons = sorted(output_neurons, key = lambda x: x.id)
         return input_neurons, output_neurons
 
-    ### Visualization
+### Visualization
     def set_pos(self):
         input_neurons = set()
         for neuron in self.neurons:
@@ -302,9 +305,13 @@ class NeuronGroup(object):
  
     def display_spikes(self):
         spike_train = ' id\n' + '=' * 5 + '╔' + '═' * self.total_timepoints + '╗\n'
-        for neuron in self.neurons:
-            spike_train += str(neuron.id) + ' ' * (5 - len(str(neuron.id))) \
-            + '║' + neuron.display_spikes() + '║\n'  
+        for neuron in sorted(self.neurons, key = lambda x: x.id):
+            if neuron.connected_to_external_source:
+                spike_train += str(neuron.id) + '*' + ' ' * (4 - len(str(neuron.id))) \
+                + '║' + neuron.display_spikes() + '║\n' 
+            else:
+                spike_train += str(neuron.id) + ' ' * (5 - len(str(neuron.id))) \
+                + '║' + neuron.display_spikes() + '║\n'  
         spike_train +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
         print(spike_train)
 
