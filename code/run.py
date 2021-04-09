@@ -7,10 +7,10 @@ from matplotlib import pyplot as plt
 ###
 if __name__ == '__main__':
     sim = Simulation(total_time= 0.1, dt = 0.001)
-    group = sim.NeuronGroup(100, connection_chance= 1/10,
+    group = sim.NeuronGroup(500, connection_chance= 9/10,
                             online_learning_rule = None,
                             save_gif = False,
-                            base_current = 5000)
+                            base_current = 500)
     # Stimulus
     stim1 = sim.Stimulus(lambda t : 5000)
     stim2 = sim.Stimulus(lambda t : 5000 *np.sin(5*t))
@@ -28,5 +28,5 @@ if __name__ == '__main__':
     learning(reward = True)
     # Visualization
     group.display_spikes()
-    fig, ax = group.draw_graph(display_ids= True)
-    plt.show()
+    # fig, ax = group.draw_graph(display_ids= True)
+    # plt.show()
