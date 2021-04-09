@@ -96,7 +96,6 @@ class Neuron(object):
         if self.save_current:
             self.current_history = np.zeros(total_timepoints)
         self.spike_train =  np.zeros(total_timepoints, dtype = np.bool)
-        self.spike_timepoints = []
         self.last_spike_timepoint = 0
         if self.save_potential:
             self.potential = np.zeros(total_timepoints)
@@ -130,7 +129,6 @@ class Neuron(object):
                 self.potential[self.timestep] = self.u
             # Spike
             if self.u >= self.u_thresh:
-                self.spike_timepoints.append(self.timestep)
                 self.spike_train[self.timestep] = True
                 self.open = False
                 self.refactory_time = 0 
@@ -144,6 +142,9 @@ class Neuron(object):
     def spike(self):
         return self.spike_train[self.timestep - 1]
 
+    @property
+    def spike_timepoints(self):
+        return np.where(self.spike_train)
 
     def display_spikes(self):
         spike_train = self.spike_train.astype(str)
