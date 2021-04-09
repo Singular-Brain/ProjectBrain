@@ -96,7 +96,6 @@ class Neuron(object):
         if self.save_current:
             self.current_history = np.zeros(total_timepoints)
         self.spike_train =  np.zeros(total_timepoints, dtype = np.bool)
-        self.last_spike_timepoint = 0
         if self.save_potential:
             self.potential = np.zeros(total_timepoints)
         self.connected_to_external_source = False
@@ -108,6 +107,8 @@ class Neuron(object):
 
     def step(self):
         assert self.timestep < self.total_timepoints, "Simulation interval has finished!"
+        if self.timestep == 0:
+            self._reset()
         # Check refactory interval
         if not self.open:
             if self.refactory_time < self.tau_ref - 1:
@@ -120,7 +121,7 @@ class Neuron(object):
                 self.u += self.model(self.current, self.u)
             if self.model.mode == 'izh':
                 # TODO:
-                self.u, self.recovery = self.model(self.current_history, self.timestep, self.last_spike_timepoint, self.u, self.recovery)
+                self.u, self.recovery = self.model(self.current_history, self.timestep, self.spike_timepoints[-1], self.u, self.recovery)
             #TODO: add save history (include both)
             # Save potential history
             if self.save_current:
@@ -134,7 +135,7 @@ class Neuron(object):
                 self.refactory_time = 0 
                 if self.model.mode == 'izh':
                     self.recovery += self.model.d
-                self.u = self.u_rest
+                self.u = self.u_rest                
         # Empty neuron's current
         self.current = 0
 
@@ -145,6 +146,10 @@ class Neuron(object):
     @property
     def spike_timepoints(self):
         return np.where(self.spike_train)
+
+    def _reset(self):
+        self.spike_train =  np.zeros(self.total_timepoints, dtype = np.bool)
+        self.current = 0
 
     def display_spikes(self):
         spike_train = self.spike_train.astype(str)

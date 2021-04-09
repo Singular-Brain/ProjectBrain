@@ -9,6 +9,7 @@ from Learning import RFSTDP
 #
 from tqdm import tqdm
 
+
 class KArmedBandit(Environment):
     def __init__(self):
         self.action_space = {0,1}

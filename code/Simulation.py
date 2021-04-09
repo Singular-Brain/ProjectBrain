@@ -33,10 +33,10 @@ class Simulation(object):
                 
     def step(self):
         for obj in sorted(self.objects, key= lambda obj: obj.order):
+            obj.timestep = self.timestep
             obj.step()
             if isinstance(obj, NeuronGroup) and obj.online_learning_rule and obj.online_learning_rule.reward_based:
                 obj.online_learning_rule.set_reward()
-            obj.timestep = self.timestep
         self.timestep += 1
 
     def run(self, verbose = 1):
@@ -49,7 +49,6 @@ class Simulation(object):
                 self.step()
             run_time = time.time() - start_time
             print(f"Simulation finished in {round(run_time,2)}s")
-
 
     def reset(self):
         self.timestep =0
