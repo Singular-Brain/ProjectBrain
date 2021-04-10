@@ -31,7 +31,7 @@ class IF(NeuronType):
 
 
 class LIF(NeuronType):
-    def __init__(self, dt, Rm = 1, Cm = 0.1):
+    def __init__(self, dt, u_rest= -68, Rm = 1, Cm = 0.1):
         """
         Leaky Integrate-and-Fire Neural Model
         """
@@ -39,10 +39,11 @@ class LIF(NeuronType):
         self.Rm = Rm #ohm
         self.Cm = Cm #uF
         self.tau_m = Rm*Cm
-        self.mode = 'lif'
+        self.exp_term = np.exp(-1/self.tau_m)
+        self.u_base = (1-self.exp_term) * u_rest
 
     def __call__(self, current, previous_potential):
-        return (-previous_potential+current*self.Rm) / self.tau_m* self.dt
+        return self.u_base + self.exp_term * previous_potential + current/self.Cm
 
 
 class Izhikevich(NeuronType):
@@ -75,8 +76,7 @@ class Neuron(object):
     _ids = count(0)
     def __init__(self, total_timepoints, dt, model,
                  neurotransmitter = 'excitatory', tau_ref = 0.002, u_rest = -68,
-                 u_thresh = +30, save_potential_history = False,
-                 save_current_history=False):
+                 u_thresh = +30, save_history = False,):
         """
         Define a new Neuron object
         Args:
@@ -91,14 +91,12 @@ class Neuron(object):
         self.u_rest = u_rest #mv
         self.u_thresh = u_thresh #mv
         self.u = self.u_rest
-        self.save_potential = save_potential_history
-        self.save_current = save_current_history
+        self.save_history = save_history
         self.open = True
-        if self.save_current:
+        if self.save_history:
             self.current_history = np.zeros(total_timepoints)
-        self.spike_train =  np.zeros(total_timepoints, dtype = np.bool)
-        if self.save_potential:
             self.potential = np.zeros(total_timepoints)
+        self.spike_train =  np.zeros(total_timepoints, dtype = np.bool)
         self.connected_to_external_source = False
         self.current = 0
         self.timestep = 0
@@ -119,16 +117,14 @@ class Neuron(object):
                 self.open = True
         else:
             # Update
-            if self.model.mode == 'lif':
-                self.u += self.model(self.current, self.u)
-            if self.model.mode == 'izh':
-                # TODO:
-                self.u, self.recovery = self.model(self.current_history, self.timestep, self.spike_timepoints[-1], self.u, self.recovery)
+            self.u += self.model(self.current, self.u)
+            #TODO: Izhikevich Model
+            # if self.model.mode == 'izh':
+            #     self.u, self.recovery = self.model(self.current_history, self.timestep, self.spike_timepoints[-1], self.u, self.recovery)
             #TODO: add save history (include both)
             # Save potential history
-            if self.save_current:
+            if self.save_history:
                 self.current_history[self.timestep] = self.current
-            if self.save_potential:
                 self.potential[self.timestep] = self.u
             # Spike
             if self.u >= self.u_thresh:
