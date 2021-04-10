@@ -110,6 +110,7 @@ class Neuron(object):
         assert self.timestep < self.total_timepoints, "Simulation interval has finished!"
         if self.timestep == 0:
             self._reset()
+            return
         # Check refactory interval
         if not self.open:
             if self.refactory_time < self.tau_ref - 1:
@@ -142,7 +143,7 @@ class Neuron(object):
 
     @property
     def spike(self):
-        return self.spike_train[self.timestep - 1]
+        return self.spike_train[self.timestep]
 
     @property
     def spike_timepoints(self):
@@ -151,6 +152,7 @@ class Neuron(object):
     def _reset(self):
         self.spike_train =  np.zeros(self.total_timepoints, dtype = np.bool)
         self.current = 0
+        self.open = True
 
     def display_spikes(self):
         spike_train = self.spike_train.astype(str)
@@ -161,7 +163,7 @@ class Neuron(object):
 
 class NeuronGroup(object):
     _ids = count(0)
-    order = 1
+    order = 0
     def __init__(self, population, total_timepoints, dt, neuron_model = LIF,
                  connection_chance=1/10, inhibition_rate= 2/10,
                  base_current = 50, online_learning_rule = None,
@@ -246,7 +248,7 @@ class NeuronGroup(object):
         output_neurons = sorted(output_neurons, key = lambda x: x.id)
         return input_neurons, output_neurons
 
-### Visualization
+    ### Visualization
     def set_pos(self):
         input_neurons = set()
         for neuron in self.neurons:
@@ -318,7 +320,7 @@ class NeuronGroup(object):
 
 class Stimulus(object):
     _ids = count(0)
-    order = 0
+    order = 1
     def __init__(self, output, dt):
         """
         Parameters
