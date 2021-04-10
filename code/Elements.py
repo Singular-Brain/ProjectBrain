@@ -10,8 +10,7 @@ import cv2
 import PIL
 
 class NeuronType(ABC):
-    def __init__(self, dt):
-        self.dt = dt
+    def __init__(self):
         self.mode = None
 
 
@@ -31,11 +30,11 @@ class IF(NeuronType):
 
 
 class LIF(NeuronType):
-    def __init__(self, dt, u_rest= -68, Rm = 1, Cm = 0.1):
+    def __init__(self, u_rest= -68, Rm = 1, Cm = 0.1):
         """
         Leaky Integrate-and-Fire Neural Model
         """
-        super().__init__(dt)
+        super().__init__()
         self.Rm = Rm #ohm
         self.Cm = Cm #uF
         self.tau_m = Rm*Cm
@@ -43,6 +42,7 @@ class LIF(NeuronType):
         self.u_base = (1-self.exp_term) * u_rest
 
     def __call__(self, current, previous_potential):
+        print(self.u_base, self.exp_term, previous_potential, current, self.Cm)
         return self.u_base + self.exp_term * previous_potential + current/self.Cm
 
 
@@ -95,7 +95,7 @@ class Neuron(object):
         self.open = True
         if self.save_history:
             self.current_history = np.zeros(total_timepoints)
-            self.potential = np.zeros(total_timepoints)
+            self.potential_history = np.zeros(total_timepoints)
         self.spike_train =  np.zeros(total_timepoints, dtype = np.bool)
         self.connected_to_external_source = False
         self.current = 0
@@ -117,7 +117,7 @@ class Neuron(object):
                 self.open = True
         else:
             # Update
-            self.u += self.model(self.current, self.u)
+            self.u = self.model(self.current, self.u)
             #TODO: Izhikevich Model
             # if self.model.mode == 'izh':
             #     self.u, self.recovery = self.model(self.current_history, self.timestep, self.spike_timepoints[-1], self.u, self.recovery)
@@ -125,7 +125,7 @@ class Neuron(object):
             # Save potential history
             if self.save_history:
                 self.current_history[self.timestep] = self.current
-                self.potential[self.timestep] = self.u
+                self.potential_history[self.timestep] = self.u
             # Spike
             if self.u >= self.u_thresh:
                 self.spike_train[self.timestep] = True
@@ -149,6 +149,8 @@ class Neuron(object):
         self.spike_train =  np.zeros(self.total_timepoints, dtype = np.bool)
         self.current = 0
         self.open = True
+        if self.save_history:
+            self.potential_history[self.timestep] = self.u_rest
 
     def display_spikes(self):
         spike_train = self.spike_train.astype(str)
@@ -160,10 +162,10 @@ class Neuron(object):
 class NeuronGroup(object):
     _ids = count(0)
     order = 0
-    def __init__(self, population, total_timepoints, dt, neuron_model = LIF,
+    def __init__(self, population, total_timepoints, dt, neuron_model = LIF(),
                  connection_chance=1/10, inhibition_rate= 2/10,
                  base_current = 50, online_learning_rule = None,
-                 save_gif = False,
+                 neuron_attrs = {}, save_gif = False,
                  ):
         """
         Parameters
@@ -183,8 +185,9 @@ class NeuronGroup(object):
             warnings.warn('WARNING: "save_gif" is set to True, it can considerably slow down the simulation process. To see the result use "save_gif_to" function after training')
             self.images = []
         self.neurons = {
-            Neuron(total_timepoints, dt, model = neuron_model(dt = dt), 
-                   neurotransmitter = 'excitatory' if random.random() > inhibition_rate else 'inhibitory')
+            Neuron(total_timepoints, dt, model = neuron_model, 
+                   neurotransmitter = 'excitatory' if random.random() > inhibition_rate else 'inhibitory',
+                   **neuron_attrs)
             for _ in range(self.population)} 
         # Graph
         self._define_network_graph()
