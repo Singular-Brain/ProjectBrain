@@ -160,7 +160,7 @@ class Neuron(object):
 class NeuronGroup(object):
     _ids = count(0)
     order = 0
-    def __init__(self, population, total_timepoints, dt, neuron_model = LIF,
+    def __init__(self, population_size, total_timepoints, dt, neuron_model = LIF,
                  connection_chance=1/10, inhibition_rate= 2/10,
                  base_current = 50, online_learning_rule = None,
                  neuron_attrs = {}, save_gif = False,
@@ -174,7 +174,7 @@ class NeuronGroup(object):
         self.id = next(self._ids)
         self.dt = dt
         self.total_timepoints = total_timepoints
-        self.population = population
+        self.population_size = population_size
         self.connection_chance = connection_chance
         self.base_current = base_current
         self.online_learning_rule = online_learning_rule(dt) if online_learning_rule is not None else None
@@ -186,7 +186,7 @@ class NeuronGroup(object):
             Neuron(total_timepoints, dt, model = neuron_model(dt), 
                    neurotransmitter = 'excitatory' if random.random() > inhibition_rate else 'inhibitory',
                    **neuron_attrs)
-            for _ in range(self.population)} 
+            for _ in range(self.population_size)} 
         # Graph
         self._define_network_graph()
         self.pos = None
