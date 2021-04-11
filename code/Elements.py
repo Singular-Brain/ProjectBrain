@@ -43,7 +43,7 @@ class LIF(NeuronType):
         self.u_base = (1-self.exp_term) * u_rest
 
     def __call__(self, current, previous_potential):
-        return self.u_base + self.exp_term * previous_potential + current* dt /self.Cm
+        return self.u_base + self.exp_term * previous_potential + current* self.dt /self.Cm
 
 
 class Izhikevich(NeuronType):
@@ -196,9 +196,9 @@ class NeuronGroup(object):
         self.network = nx.DiGraph()
         self.network.add_nodes_from(self.neurons)
         for PreSN in self.network.nodes:
-            for PostSN in self.network.nodes:
-                if PreSN != PostSN:
+            for PostSN in set(self.network.nodes) - {PreSN}:
                     if random.random() < self.connection_chance:
+                        #TODO: add_edge_from a N*N matrix 
                         self.network.add_edge(PreSN, PostSN, weight = np.random.randn(1))
 
     def _define_network_graph(self):
@@ -224,8 +224,8 @@ class NeuronGroup(object):
             for preSN, postSN, weight in self.network.out_edges(neuron, data = 'weight'):
                 if postSN.open:
                     postSN.current += (-1 if preSN.neurotransmitter == 'inhibitory' else +1) * self.base_current * weight
-            if self.online_learning_rule:
-                self.online_learning_rule(self.network, neuron)
+            # if self.online_learning_rule:
+            #     self.online_learning_rule(self.network, neuron)
  
         if self.save_gif:
             fig, _ = self.draw_graph()
