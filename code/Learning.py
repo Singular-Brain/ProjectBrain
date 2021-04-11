@@ -3,7 +3,7 @@ import numpy as np
 class Learning(object):
     def __init__(self):
         self.reward_based = False
-
+# TODO: Read it 
 ### Online Learning
 class FSTDP_online(Learning):
     def __init__(self, dt,

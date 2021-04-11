@@ -1,4 +1,3 @@
-#This is ME
 from abc import ABCMeta, abstractmethod, ABC
 import random
 import warnings
@@ -9,13 +8,12 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import cv2 
 import PIL
-
+print('hi')
 class NeuronType(ABC):
     def __init__(self, dt):
         self.dt = dt
         self.mode = None
-
-
+ 
 class IF(NeuronType):
     def __init__(self, dt, Cm = 0.1):
         """
