@@ -1,5 +1,5 @@
-from Simulation import Simulation
-from Learning import RFSTDP
+from explicit.Simulation import Simulation
+from explicit.Learning import RFSTDP
 #
 # 
 import numpy as np
