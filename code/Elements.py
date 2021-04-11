@@ -131,8 +131,8 @@ class Neuron(object):
                 self.spike_train[self.timestep] = True
                 self.open = False
                 self.refactory_time = 0 
-                if self.model.mode == 'izh':
-                    self.recovery += self.model.d
+                # if self.model.mode == 'izh':
+                #     self.recovery += self.model.d
                 self.u = self.u_rest                
         # Empty neuron's current
         self.current = 0

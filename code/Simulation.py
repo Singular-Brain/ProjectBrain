@@ -32,11 +32,12 @@ class Simulation(object):
         #         self.reward_based = G.online_learning_rule.reward_based
                 
     def step(self):
+        #TODO: define self.sorted_objects to avoid sorting in each step 
         for obj in sorted(self.objects, key= lambda obj: obj.order):
             obj.timestep = self.timestep
             obj.step()
-            if isinstance(obj, NeuronGroup) and obj.online_learning_rule and obj.online_learning_rule.reward_based:
-                obj.online_learning_rule.set_reward()
+            # if isinstance(obj, NeuronGroup) and obj.online_learning_rule and obj.online_learning_rule.reward_based:
+            #     obj.online_learning_rule.set_reward()
 
     def run(self, verbose = 2):
         self._reset()
