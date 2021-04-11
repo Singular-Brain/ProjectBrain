@@ -68,9 +68,25 @@ class NeuronGroup:
             self.current += new_currents * open_neurons
             self.current += self.get_stimuli_current()
 
-stimuli = {Stimulus(0.001, lambda t: 10000, [1,2]),
-           Stimulus(0.001, lambda t: 10000 * t, [3])}
+    def _spike_train_repr(self, spike_train):
+        string = ''
+        for t in spike_train:
+            string += '|' if t else ' '
+        return string
 
-G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 0.2, total_time = 0.1, stimuli = stimuli)
+    def display_spikes(self):
+        spike_train_display = ' id\n' + '=' * 5 + '╔' + '═' * self.total_timepoints + '╗\n'
+        for i, spike_train in enumerate(self.spike_train):
+            spike_train_display += str(i) + ' ' * (5 - len(str(i))) \
+            + '║' + self._spike_train_repr(spike_train) + '║\n'  
+        spike_train_display +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
+        print(spike_train_display)
+
+stimuli = {Stimulus(0.001, lambda t: 10000, [0,1]),
+           Stimulus(0.001, lambda t: 200000 * t, [2]),
+           Stimulus(0.001, lambda t: 200000 * np.sin(500*t), [3])}
+
+G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 1,
+                 total_time = 0.1, stimuli = stimuli, base_current = 10000)
 G.run()
-print(G.spike_train)
+G.display_spikes()
