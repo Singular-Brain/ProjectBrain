@@ -13,8 +13,7 @@ class NeuronType(ABC):
     def __init__(self, dt):
         self.dt = dt
         self.mode = None
-
-
+ 
 class IF(NeuronType):
     def __init__(self, dt, Cm = 0.1):
         """
