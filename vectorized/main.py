@@ -16,6 +16,7 @@ class NeuronGroup:
         self.dt = dt
         self.N = population_size
         self.total_timepoints = int(total_time/dt)
+        self.stimuli = stimuli
         self.kwargs = kwargs
         self.connection_chance = connection_chance
         self.base_current = kwargs.get('base_current', 1000)
@@ -47,7 +48,7 @@ class NeuronGroup:
 
     def get_stimuli_current(self):
         stimuli_current = np.zeros((self.N,1))
-        for stimulus in stimuli:
+        for stimulus in self.stimuli:
             stimuli_current[stimulus.neurons] += stimulus(self.timepoint)
         return stimuli_current
     
