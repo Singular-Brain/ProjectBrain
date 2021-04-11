@@ -82,11 +82,12 @@ class NeuronGroup:
         spike_train_display +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
         print(spike_train_display)
 
-stimuli = {Stimulus(0.001, lambda t: 10000, [0,1]),
-           Stimulus(0.001, lambda t: 200000 * t, [2]),
-           Stimulus(0.001, lambda t: 200000 * np.sin(500*t), [3])}
+if __name__ == "__main__":
+    stimuli = {Stimulus(0.001, lambda t: 10000, [0,1]),
+            Stimulus(0.001, lambda t: 200000 * t, [2]),
+            Stimulus(0.001, lambda t: 200000 * np.sin(500*t), [3])}
 
-G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 1,
-                 total_time = 0.1, stimuli = stimuli, base_current = 10000)
-G.run()
-G.display_spikes()
+    G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 1,
+                    total_time = 0.1, stimuli = stimuli, base_current = 10000)
+    G.run()
+    G.display_spikes()
