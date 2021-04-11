@@ -1,5 +1,3 @@
-#This is ME
-# My second comment
 from abc import ABCMeta, abstractmethod, ABC
 import random
 import warnings
@@ -16,7 +14,7 @@ class NeuronType(ABC):
         self.dt = dt
         self.mode = None
 
-
+# Test comment for commit with VS 
 class IF(NeuronType):
     def __init__(self, dt, Cm = 0.1):
         """
