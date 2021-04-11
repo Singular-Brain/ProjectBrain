@@ -1,4 +1,4 @@
-from Elements import NeuronGroup, Stimulus
+from .Elements import NeuronGroup, Stimulus
 #
 import time
 # 
