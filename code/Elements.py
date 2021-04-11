@@ -31,7 +31,7 @@ class IF(NeuronType):
 
 
 class LIF(NeuronType):
-    def __init__(self, dt, Rm = 1, Cm = 0.1):
+    def __init__(self, dt, u_rest= -68, Rm = 1, Cm = 0.1):
         """
         Leaky Integrate-and-Fire Neural Model
         """
@@ -39,10 +39,11 @@ class LIF(NeuronType):
         self.Rm = Rm #ohm
         self.Cm = Cm #uF
         self.tau_m = Rm*Cm
-        self.mode = 'lif'
+        self.exp_term = np.exp(-1/self.tau_m)
+        self.u_base = (1-self.exp_term) * u_rest
 
     def __call__(self, current, previous_potential):
-        return (-previous_potential+current*self.Rm) / self.tau_m* self.dt
+        return self.u_base + self.exp_term * previous_potential + current* self.dt /self.Cm
 
 
 class Izhikevich(NeuronType):
@@ -75,8 +76,7 @@ class Neuron(object):
     _ids = count(0)
     def __init__(self, total_timepoints, dt, model,
                  neurotransmitter = 'excitatory', tau_ref = 0.002, u_rest = -68,
-                 u_thresh = +30, save_potential_history = False,
-                 save_current_history=False):
+                 u_thresh = +30, save_history = False,):
         """
         Define a new Neuron object
         Args:
@@ -91,14 +91,12 @@ class Neuron(object):
         self.u_rest = u_rest #mv
         self.u_thresh = u_thresh #mv
         self.u = self.u_rest
-        self.save_potential = save_potential_history
-        self.save_current = save_current_history
+        self.save_history = save_history
         self.open = True
-        if self.save_current:
+        if self.save_history:
             self.current_history = np.zeros(total_timepoints)
+            self.potential_history = np.ones(total_timepoints) * self.u_rest
         self.spike_train =  np.zeros(total_timepoints, dtype = np.bool)
-        if self.save_potential:
-            self.potential = np.zeros(total_timepoints)
         self.connected_to_external_source = False
         self.current = 0
         self.timestep = 0
@@ -110,6 +108,7 @@ class Neuron(object):
         assert self.timestep < self.total_timepoints, "Simulation interval has finished!"
         if self.timestep == 0:
             self._reset()
+            return
         # Check refactory interval
         if not self.open:
             if self.refactory_time < self.tau_ref - 1:
@@ -118,17 +117,15 @@ class Neuron(object):
                 self.open = True
         else:
             # Update
-            if self.model.mode == 'lif':
-                self.u += self.model(self.current, self.u)
-            if self.model.mode == 'izh':
-                # TODO:
-                self.u, self.recovery = self.model(self.current_history, self.timestep, self.spike_timepoints[-1], self.u, self.recovery)
+            self.u = self.model(self.current, self.u)
+            #TODO: Izhikevich Model
+            # if self.model.mode == 'izh':
+            #     self.u, self.recovery = self.model(self.current_history, self.timestep, self.spike_timepoints[-1], self.u, self.recovery)
             #TODO: add save history (include both)
             # Save potential history
-            if self.save_current:
+            if self.save_history:
                 self.current_history[self.timestep] = self.current
-            if self.save_potential:
-                self.potential[self.timestep] = self.u
+                self.potential_history[self.timestep] = self.u
             # Spike
             if self.u >= self.u_thresh:
                 self.spike_train[self.timestep] = True
@@ -142,7 +139,7 @@ class Neuron(object):
 
     @property
     def spike(self):
-        return self.spike_train[self.timestep - 1]
+        return self.spike_train[self.timestep]
 
     @property
     def spike_timepoints(self):
@@ -151,6 +148,7 @@ class Neuron(object):
     def _reset(self):
         self.spike_train =  np.zeros(self.total_timepoints, dtype = np.bool)
         self.current = 0
+        self.open = True
 
     def display_spikes(self):
         spike_train = self.spike_train.astype(str)
@@ -161,11 +159,11 @@ class Neuron(object):
 
 class NeuronGroup(object):
     _ids = count(0)
-    order = 1
-    def __init__(self, population, total_timepoints, dt, neuron_model = LIF,
+    order = 0
+    def __init__(self, population_size, total_timepoints, dt, neuron_model = LIF,
                  connection_chance=1/10, inhibition_rate= 2/10,
                  base_current = 50, online_learning_rule = None,
-                 save_gif = False,
+                 neuron_attrs = {}, save_gif = False,
                  ):
         """
         Parameters
@@ -176,7 +174,7 @@ class NeuronGroup(object):
         self.id = next(self._ids)
         self.dt = dt
         self.total_timepoints = total_timepoints
-        self.population = population
+        self.population_size = population_size
         self.connection_chance = connection_chance
         self.base_current = base_current
         self.online_learning_rule = online_learning_rule(dt) if online_learning_rule is not None else None
@@ -185,9 +183,10 @@ class NeuronGroup(object):
             warnings.warn('WARNING: "save_gif" is set to True, it can considerably slow down the simulation process. To see the result use "save_gif_to" function after training')
             self.images = []
         self.neurons = {
-            Neuron(total_timepoints, dt, model = neuron_model(dt = dt), 
-                   neurotransmitter = 'excitatory' if random.random() > inhibition_rate else 'inhibitory')
-            for _ in range(self.population)} 
+            Neuron(total_timepoints, dt, model = neuron_model(dt), 
+                   neurotransmitter = 'excitatory' if random.random() > inhibition_rate else 'inhibitory',
+                   **neuron_attrs)
+            for _ in range(self.population_size)} 
         # Graph
         self._define_network_graph()
         self.pos = None
@@ -197,9 +196,9 @@ class NeuronGroup(object):
         self.network = nx.DiGraph()
         self.network.add_nodes_from(self.neurons)
         for PreSN in self.network.nodes:
-            for PostSN in self.network.nodes:
-                if PreSN != PostSN:
+            for PostSN in set(self.network.nodes) - {PreSN}:
                     if random.random() < self.connection_chance:
+                        #TODO: add_edge_from a N*N matrix 
                         self.network.add_edge(PreSN, PostSN, weight = np.random.randn(1))
 
     def _define_network_graph(self):
@@ -225,8 +224,8 @@ class NeuronGroup(object):
             for preSN, postSN, weight in self.network.out_edges(neuron, data = 'weight'):
                 if postSN.open:
                     postSN.current += (-1 if preSN.neurotransmitter == 'inhibitory' else +1) * self.base_current * weight
-            if self.online_learning_rule:
-                self.online_learning_rule(self.network, neuron)
+            # if self.online_learning_rule:
+            #     self.online_learning_rule(self.network, neuron)
  
         if self.save_gif:
             fig, _ = self.draw_graph()
@@ -246,7 +245,7 @@ class NeuronGroup(object):
         output_neurons = sorted(output_neurons, key = lambda x: x.id)
         return input_neurons, output_neurons
 
-### Visualization
+    ### Visualization
     def set_pos(self):
         input_neurons = set()
         for neuron in self.neurons:
@@ -318,7 +317,7 @@ class NeuronGroup(object):
 
 class Stimulus(object):
     _ids = count(0)
-    order = 0
+    order = 1
     def __init__(self, output, dt):
         """
         Parameters
