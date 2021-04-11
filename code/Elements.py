@@ -8,7 +8,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import cv2 
 import PIL
-
+print('hi')
 class NeuronType(ABC):
     def __init__(self, dt):
         self.dt = dt
