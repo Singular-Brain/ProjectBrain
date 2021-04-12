@@ -30,7 +30,7 @@ class IF(NeuronType):
 
 
 class LIF(NeuronType):
-    def __init__(self, dt, u_rest= -68, Rm = 1, Cm = 0.1):
+    def __init__(self, dt, u_rest= -63E-3, Rm = 135E6, Cm = 14.7E-12):
         """
         Leaky Integrate-and-Fire Neural Model
         """
@@ -74,8 +74,8 @@ class Izhikevich(NeuronType):
 class Neuron(object):
     _ids = count(0)
     def __init__(self, total_timepoints, dt, model,
-                 neurotransmitter = 'excitatory', tau_ref = 0.002, u_rest = -68,
-                 u_thresh = +30, save_history = False,):
+                 neurotransmitter = 'excitatory', tau_ref = 2E-3, u_rest = -63E-3,
+                 u_thresh = +35E-3, save_history = False,):
         """
         Define a new Neuron object
         Args:
@@ -101,17 +101,17 @@ class Neuron(object):
         self.timestep = 0
         if self.model.mode == 'izh':
             self.recovery = self.model.u_rest*self.model.b
-        self.refactory_time = 0
+        self.refractory_time = 0
 
     def step(self):
         assert self.timestep < self.total_timepoints, "Simulation interval has finished!"
         if self.timestep == 0:
             self._reset()
             return
-        # Check refactory interval
+        # Check refractory interval
         if not self.open:
-            if self.refactory_time < self.tau_ref - 1:
-                self.refactory_time += 1
+            if self.refractory_time < self.tau_ref - 1:
+                self.refractory_time += 1
             else:
                 self.open = True
         else:
@@ -129,7 +129,7 @@ class Neuron(object):
             if self.u >= self.u_thresh:
                 self.spike_train[self.timestep] = True
                 self.open = False
-                self.refactory_time = 0 
+                self.refractory_time = 0 
                 # if self.model.mode == 'izh':
                 #     self.recovery += self.model.d
                 self.u = self.u_rest                
