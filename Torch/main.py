@@ -21,10 +21,10 @@ class NeuronGroup:
         self.stimuli = stimuli
         self.kwargs = kwargs
         self.connection_chance = connection_chance
-        self.base_current = kwargs.get('base_current', 1000)
-        self.u_thresh = kwargs.get('u_thresh', 30)
-        self.u_rest = kwargs.get('u_rest', -68)
-        self.refractory_timepoints = kwargs.get('tau_refractory', 0.004) / self.dt
+        self.base_current = kwargs.get('base_current', 1E-9)
+        self.u_thresh = kwargs.get('u_thresh', 35E-3)
+        self.u_rest = kwargs.get('u_rest', -63E-3)
+        self.refractory_timepoints = kwargs.get('tau_refractory', 0.002) / self.dt
         self.excitatory_chance = kwargs.get('excitatory_chance',  0.8)
         self.refractory = torch.ones((self.N,1)).to(DEVICE) * self.refractory_timepoints
         self.current = torch.zeros((self.N,1)).to(DEVICE)
@@ -37,13 +37,17 @@ class NeuronGroup:
         self.excitatory_neurons = (torch.rand(*self.weights.shape) + self.excitatory_chance).type(torch.int) * 2 -1
         self.AdjacencyMatrix = self.connections * self.excitatory_neurons * self.weights
         self.AdjacencyMatrix = self.AdjacencyMatrix.to(DEVICE)
+        self.stimuli = np.array(list(stimuli))
+        self.StimuliAdjacency = np.zeros((self.N, len(stimuli)), dtype=np.bool)
+        for i, stimulus in enumerate(self.stimuli):
+            self.StimuliAdjacency[stimulus.neurons, i] = True
 
-    def LIF(self, Rm = 1, Cm = 0.1):
+    def LIF(self):
         """
         Leaky Integrate-and-Fire Neural Model
         """
-        Rm = self.kwargs.get("Rm", 1)
-        Cm = self.kwargs.get("Cm", 0.1)
+        Rm = self.kwargs.get("Rm", 135E6)
+        Cm = self.kwargs.get("Cm", 14.7E-12)
         tau_m = Rm*Cm
         exp_term = torch.exp(torch.tensor(-self.dt/tau_m))
         u_base = (1-exp_term) * self.u_rest
@@ -51,10 +55,10 @@ class NeuronGroup:
         return new_potential.to(DEVICE)
 
     def get_stimuli_current(self):
-        stimuli_current = torch.zeros((self.N,1)).to(DEVICE)
-        for stimulus in self.stimuli:
-            stimuli_current[stimulus.neurons] += stimulus(self.timepoint)
-        return stimuli_current
+        call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
+        stimuli_output = call_stimuli(self.stimuli)
+        stimuli_current = (stimuli_output * self.StimuliAdjacency).sum(axis = 1)
+        return torch.tensor(stimuli_current.reshape(self.N,1)).to(DEVICE)
     
     def run(self):
         for self.timepoint in range(self.total_timepoints):
