@@ -45,9 +45,9 @@ class NeuronGroup:
         Rm = self.kwargs.get("Rm", 1)
         Cm = self.kwargs.get("Cm", 0.1)
         tau_m = Rm*Cm
-        exp_term = np.exp(-1/tau_m)
+        exp_term = np.exp(-self.dt/tau_m)
         u_base = (1-exp_term) * self.u_rest
-        return u_base + exp_term * self.potential + self.current*self.dt/Cm  #don't know why but still i feel this is wrong. we should double check it.
+        return u_base + exp_term * self.potential + self.current*self.dt/Cm 
 
     def get_stimuli_current(self):
         stimuli_current = np.zeros((self.N,1))
@@ -61,7 +61,7 @@ class NeuronGroup:
             self.refractory +=1
             self.potential = self.LIF()
             ### Reset currents
-            self.current.fill(0) # instead check self.current = 0 ?? or self.current = np.zeros((self.N,1))
+            self.current = np.zeros((self.N,1)) 
             ### Spikes 
             spikes = self.potential>self.u_thresh
             self.spike_train[:,self.timepoint] = spikes.ravel()

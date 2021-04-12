@@ -45,7 +45,7 @@ class NeuronGroup:
         Rm = self.kwargs.get("Rm", 1)
         Cm = self.kwargs.get("Cm", 0.1)
         tau_m = Rm*Cm
-        exp_term = torch.exp(torch.tensor(-1/tau_m))
+        exp_term = torch.exp(torch.tensor(-self.dt/tau_m))
         u_base = (1-exp_term) * self.u_rest
         new_potential = u_base + exp_term * self.potential + self.current*self.dt/Cm
         return new_potential.to(DEVICE)
