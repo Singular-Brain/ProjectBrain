@@ -38,7 +38,7 @@ class LIF(NeuronType):
         self.Rm = Rm #ohm
         self.Cm = Cm #uF
         self.tau_m = Rm*Cm
-        self.exp_term = np.exp(-1/self.tau_m)
+        self.exp_term = np.exp(-self.dt/self.tau_m)
         self.u_base = (1-self.exp_term) * u_rest
 
     def __call__(self, current, previous_potential):
