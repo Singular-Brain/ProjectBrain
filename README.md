@@ -1,9 +1,8 @@
 # ProjectBrain
 ## Test run time for Vectorized mode :
 ```
-CPU numpy time:  30.53 s 
-GPU numpy time:  22.88 s 
-CPU torch time:  20.87 s 
-GPU torch time:   6.47 s
+CPU numpy time:  33.72 s 
+GPU numpy time:  22.60 s 
+CPU torch time:  24.91 s 
+GPU torch time:   4.57 s
 ```
-# Test run time for explicit mode : ??
