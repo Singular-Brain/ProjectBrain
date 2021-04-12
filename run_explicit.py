@@ -7,26 +7,23 @@ from matplotlib import pyplot as plt
 ###
 if __name__ == '__main__':
     sim = Simulation(total_time= 0.1, dt = 0.001)
-    group = sim.NeuronGroup(500, connection_chance= 9/10,
+    group = sim.NeuronGroup(100, connection_chance= 9/10,
                             online_learning_rule = None,
                             save_gif = False,
-                            base_current = 500)
+                            base_current = 1E-9,
+                            neuron_attrs = {'save_history': True})
     # Stimulus
-    stim1 = sim.Stimulus(lambda t : 5000)
-    stim2 = sim.Stimulus(lambda t : 5000 *np.sin(5*t))
-    stim3 = sim.Stimulus(lambda t : 5000 * np.log(t + 1))
-    # Input - output neurons
-    input_neurons, output_neurons = group.get_input_output(3, 1)
+    stim1 = sim.Stimulus(lambda t : 1E-9)
+    ### Input - output neurons
+    input_neurons, output_neurons = group.get_input_output(1, 1)
     # Connect
     stim1.connect(input_neurons[0])
-    stim2.connect(input_neurons[1])
-    stim3.connect(input_neurons[2])
-    # Run
+    ### Run
     sim.run()
-    # Learning
+    ### Learning
     learning = RFSTDP(group)
     learning(reward = True)
-    # Visualization
+    ### Visualization
     group.display_spikes()
-    # fig, ax = group.draw_graph(display_ids= True)
-    # plt.show()
+    fig, ax = group.draw_graph(display_ids= True)
+    plt.show()
