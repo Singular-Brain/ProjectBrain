@@ -23,7 +23,7 @@ class NeuronGroup:
         self.u_rest = kwargs.get('u_rest', -63E-3)
         self.refractory_timepoints = kwargs.get('tau_refractory', 0.002) / self.dt
         self.excitatory_chance = kwargs.get('excitatory_chance',  0.8)
-        self.refractory = np.ones((self.N,1)) * self.refractory_timepoints
+        self.refractory = np.ones((self.N,1))*self.refractory_timepoints
         self.current = np.zeros((self.N,1))
         self.potential = np.ones((self.N,1)) * self.u_rest
         self.spike_train = np.zeros((self.N, self.total_timepoints), dtype= np.bool)
@@ -137,6 +137,7 @@ if __name__ == "__main__":
                     total_time = 0.1, stimuli = stimuli, base_current = .5E-9)
     G.run()
     G.display_spikes()
-    
+    # print(G.refractory)
+    # print(G.refractory_timepoints)
     learning = RFSTDP(G)
     learning(reward = True)
