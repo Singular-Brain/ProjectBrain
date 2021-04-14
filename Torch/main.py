@@ -1,8 +1,21 @@
 import numpy as np
 import torch
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+if (torch.cuda.is_available()):
+    DEVICE = 'cuda'
+    workers = 1
+else:
+    DEVICE = 'cpu'
+    workers = 0
+print(f'Device is set to {DEVICE}\nNumber of workers: {workers}')
 
-print(DEVICE)
+from timeit import timeit
+
+TOTAL_TIME = 1 #s
+DT = 0.001
+POPULATION_SIZE = 1000
+BASE_CURRENT = 10000
+CONNECTION_CHANCE = 1
+REPEAT_TEST = 10
 
 class Stimulus:
     def __init__(self, dt, output, neurons):
@@ -131,3 +144,5 @@ class RFSTDP:
             if not reward:
                 self.AdjacencyMatrix += self.pre_post_rate * (first * span * self.AdjacencyMatrix)
                 self.AdjacencyMatrix += self.post_pre_rate * (span  * last * self.AdjacencyMatrix)
+
+
