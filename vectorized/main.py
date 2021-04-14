@@ -87,6 +87,45 @@ class NeuronGroup:
         spike_train_display +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
         print(spike_train_display)
 
+
+class RFSTDP:
+    def __init__(self, NeuronGroup,
+                 interval_time = 0.001, # seconds
+                 pre_post_rate = 0.001,
+                 reward_pre_post_rate = 0.002,
+                 post_pre_rate = -0.001,
+                 reward_post_pre_rate = 0.001,
+                 ):
+        """
+        Reward-modulated Flat STDP 
+        """
+        self.NeuronGroup = NeuronGroup
+        self.AdjacencyMatrix = NeuronGroup.AdjacencyMatrix
+        self.interval_timepoints = int(interval_time / NeuronGroup.dt) #timepoints
+        self.total_timepoints = NeuronGroup.total_timepoints
+        self.spike_train = NeuronGroup.spike_train
+        self.reward_based = True
+        self.pre_post_rate = pre_post_rate
+        self.post_pre_rate = post_pre_rate
+        self.reward_pre_post_rate = reward_pre_post_rate
+        self.reward_post_pre_rate = reward_post_pre_rate
+
+    def __call__(self, reward):
+        spike_train = self.NeuronGroup.spike_train
+        padded_spike_train = np.pad(spike_train,self.interval_timepoints)[self.interval_timepoints: -self.interval_timepoints,:]
+        for i in range(self.total_timepoints + self.interval_timepoints):
+            section = padded_spike_train[:,i:i+self.interval_timepoints]
+            span = section.sum(axis = 1).astype(np.bool)
+            first = padded_spike_train[:,i]
+            last = padded_spike_train[:,i+self.interval_timepoints]
+            if reward:
+                self.AdjacencyMatrix += self.reward_pre_post_rate * (first * span * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.reward_post_pre_rate * (span  * last * self.AdjacencyMatrix)
+            if not reward:
+                self.AdjacencyMatrix += self.pre_post_rate * (first * span * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.post_pre_rate * (span  * last * self.AdjacencyMatrix)
+
+
 if __name__ == "__main__":
     stimuli = {
             Stimulus(0.001, lambda t: .7E-9, [0,1]),
@@ -98,3 +137,6 @@ if __name__ == "__main__":
                     total_time = 0.1, stimuli = stimuli, base_current = .5E-9)
     G.run()
     G.display_spikes()
+    
+    learning = RFSTDP(G)
+    learning(reward = True)
