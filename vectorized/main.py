@@ -100,6 +100,7 @@ class RFSTDP:
         Reward-modulated Flat STDP 
         """
         self.NeuronGroup = NeuronGroup
+        self.N = NeuronGroup.N
         self.AdjacencyMatrix = NeuronGroup.AdjacencyMatrix
         self.interval_timepoints = int(interval_time / NeuronGroup.dt) #timepoints
         self.total_timepoints = NeuronGroup.total_timepoints
@@ -119,11 +120,11 @@ class RFSTDP:
             first = padded_spike_train[:,i]
             last = padded_spike_train[:,i+self.interval_timepoints]
             if reward:
-                self.AdjacencyMatrix += self.reward_pre_post_rate * (first * span * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.reward_post_pre_rate * (span  * last * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.reward_pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
             if not reward:
-                self.AdjacencyMatrix += self.pre_post_rate * (first * span * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.post_pre_rate * (span  * last * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
 
 
 if __name__ == "__main__":
@@ -133,11 +134,13 @@ if __name__ == "__main__":
             Stimulus(0.001, lambda t: 1E-9 * np.sin(500*t), [3])
             }
 
-    G = NeuronGroup(dt = 0.001, population_size = 30, connection_chance = 1/3,
+    G = NeuronGroup(dt = 0.001, population_size = 6, connection_chance = 1/3,
                     total_time = 0.1, stimuli = stimuli, base_current = 1E-9)
     G.run()
     G.display_spikes()
     # print(G.refractory)
     # print(G.refractory_timepoints)
+    print(G.AdjacencyMatrix)
     learning = RFSTDP(G)
     learning(reward = True)
+    print(G.AdjacencyMatrix)

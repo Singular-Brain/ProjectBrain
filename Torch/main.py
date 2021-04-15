@@ -140,10 +140,10 @@ class RFSTDP:
             first = padded_spike_train[:,i]
             last = padded_spike_train[:,i+self.interval_timepoints]
             if reward:
-                self.AdjacencyMatrix += self.reward_pre_post_rate * (first * span * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.reward_post_pre_rate * (span  * last * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.reward_pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
             if not reward:
-                self.AdjacencyMatrix += self.pre_post_rate * (first * span * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.post_pre_rate * (span  * last * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.AdjacencyMatrix += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
 
 
