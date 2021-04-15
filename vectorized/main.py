@@ -55,6 +55,7 @@ class NeuronGroup:
         return stimuli_current.reshape(self.N,1)
     
     def run(self):
+        self._reset()
         for self.timepoint in range(self.total_timepoints):
             ### LIF update
             self.refractory +=1
@@ -71,6 +72,12 @@ class NeuronGroup:
             open_neurons = self.refractory >= self.refractory_timepoints
             self.current += new_currents * open_neurons
             self.current += self.get_stimuli_current() * open_neurons
+
+    def _reset(self):
+        self.refractory = np.ones((self.N,1))*self.refractory_timepoints
+        self.current = np.zeros((self.N,1))
+        self.potential = np.ones((self.N,1)) * self.u_rest
+        self.spike_train = np.zeros((self.N, self.total_timepoints), dtype= np.bool)
 
 
     def _spike_train_repr(self, spike_train):
@@ -138,8 +145,6 @@ if __name__ == "__main__":
                     total_time = 0.1, stimuli = stimuli, base_current = 1E-9)
     G.run()
     G.display_spikes()
-    # print(G.refractory)
-    # print(G.refractory_timepoints)
     print(G.AdjacencyMatrix)
     learning = RFSTDP(G)
     learning(reward = True)
