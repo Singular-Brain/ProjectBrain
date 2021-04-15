@@ -69,13 +69,14 @@ class NeuronGroup:
             self.current = torch.zeros((self.N,1)).to(DEVICE)
             ### Spikes 
             spikes = self.potential>self.u_thresh
+            self.potential[spikes] = self.u_rest
             self.spike_train[:,self.timepoint] = spikes.ravel()
             self.refractory *= torch.logical_not(spikes).to(DEVICE)
             ### Transfer currents + external sources
             new_currents = (spikes * self.AdjacencyMatrix).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
             self.current += new_currents * open_neurons
-            self.current += self.get_stimuli_current()
+            self.current += self.get_stimuli_current() * open_neurons
 
     def _spike_train_repr(self, spike_train):
         string = ''

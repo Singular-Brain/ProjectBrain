@@ -63,15 +63,15 @@ class NeuronGroup:
             self.current = np.zeros((self.N,1)) 
             ### Spikes 
             spikes = self.potential>self.u_thresh
+            self.potential[spikes] = self.u_rest
             self.spike_train[:,self.timepoint] = spikes.ravel()
             self.refractory *= np.logical_not(spikes)
             ### Transfer currents + external sources
             new_currents = (spikes * self.AdjacencyMatrix).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
             self.current += new_currents * open_neurons
-            self.current += self.get_stimuli_current() #instead of this we can use :
-            # self.current = np.sum(self.stimuli_adjancy * self.stimuli_current,axis = 1, keepdims = True) 
-            
+            self.current += self.get_stimuli_current() * open_neurons
+
 
     def _spike_train_repr(self, spike_train):
         string = ''
@@ -129,12 +129,12 @@ class RFSTDP:
 if __name__ == "__main__":
     stimuli = {
             Stimulus(0.001, lambda t: .7E-9, [0,1]),
-            # Stimulus(0.001, lambda t: 20E-9 * t, [2]),
+            Stimulus(0.001, lambda t: 20E-9 * t, [2]),
             Stimulus(0.001, lambda t: 1E-9 * np.sin(500*t), [3])
             }
 
-    G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 1/3,
-                    total_time = 0.1, stimuli = stimuli, base_current = .5E-9)
+    G = NeuronGroup(dt = 0.001, population_size = 30, connection_chance = 1/3,
+                    total_time = 0.1, stimuli = stimuli, base_current = 1E-9)
     G.run()
     G.display_spikes()
     
