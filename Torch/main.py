@@ -5,13 +5,6 @@ from timeit import timeit
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Device is set to {DEVICE}')
 
-TOTAL_TIME = 1 #s
-DT = 0.001
-POPULATION_SIZE = 1000
-BASE_CURRENT = 10000
-CONNECTION_CHANCE = 1
-REPEAT_TEST = 10
-
 class Stimulus:
     def __init__(self, dt, output, neurons):
         self.output = output
