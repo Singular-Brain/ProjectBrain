@@ -1,14 +1,9 @@
 import numpy as np
 import torch
-if (torch.cuda.is_available()):
-    DEVICE = 'cuda'
-    workers = 1
-else:
-    DEVICE = 'cpu'
-    workers = 0
-print(f'Device is set to {DEVICE}\nNumber of workers: {workers}')
-
 from timeit import timeit
+
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f'Device is set to {DEVICE}')
 
 TOTAL_TIME = 1 #s
 DT = 0.001
