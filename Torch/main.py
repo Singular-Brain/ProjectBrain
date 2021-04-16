@@ -32,6 +32,10 @@ class NeuronGroup:
         self.refractory = torch.ones((self.N,1)).to(DEVICE) * self.refractory_timepoints
         self.current = torch.zeros((self.N,1)).to(DEVICE)
         self.potential = torch.ones((self.N,1)).to(DEVICE) * self.u_rest
+        self.save_history = kwargs.get('save_history',  False)
+        if self.save_history:
+            self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
+            self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
         self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool).to(DEVICE)
         self.weights = np.random.rand(self.N,self.N)
         np.fill_diagonal(self.weights, 0)
@@ -68,6 +72,8 @@ class NeuronGroup:
             ### LIF update
             self.refractory +=1
             self.potential = self.LIF()
+            if self.save_history:
+                self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
             self.current = torch.zeros((self.N,1)).to(DEVICE)
             ### Spikes 
@@ -78,8 +84,9 @@ class NeuronGroup:
             ### Transfer currents + external sources
             new_currents = (spikes * self.AdjacencyMatrix).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
-            self.current += new_currents * open_neurons
-            self.current += self.get_stimuli_current() * open_neurons
+            self.current += (new_currents + self.get_stimuli_current()) * open_neurons
+            if self.save_history:
+                self.current_history[:,self.timepoint] = self.current.ravel()
 
     def _spike_train_repr(self, spike_train):
         string = ''
