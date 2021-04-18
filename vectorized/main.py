@@ -1,4 +1,6 @@
 import numpy as np
+import networkx as nx #Visualization
+import matplotlib.pyplot as plt
 
 class Stimulus:
     def __init__(self, dt, output, neurons):
@@ -102,6 +104,37 @@ class NeuronGroup:
         spike_train_display +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
         print(spike_train_display)
 
+    def _set_pos(self, graph, input_neurons):
+        pos = {}
+        for y, neuron in enumerate(input_neurons):
+            pos[neuron] = (0, (y+1) / (len(input_neurons)+1))
+        last_layer = input_neurons
+        for x in range(1, len(graph.nodes())):
+            counted_neurons = set(pos.keys()) 
+            next_layer = set()
+            for neuron in last_layer:
+                next_layer.update(graph.successors(neuron))
+            new_neurons = next_layer - counted_neurons
+            if new_neurons == set():
+                break
+            else:
+                for y, neuron in enumerate(new_neurons):
+                    pos[neuron] = (x, (y+1)/(len(new_neurons)+1))
+            last_layer = next_layer
+        not_in_input_successors =set(graph.nodes()) - set(pos.keys()) 
+        if not_in_input_successors:
+            for y, neuron in enumerate(not_in_input_successors):
+                    pos[neuron] = (x, (y+1)/(len(not_in_input_successors)+1))
+        return pos
+
+    def show_graph(self, input_neurons, **kwargs):
+        rows, cols = np.where(self.AdjacencyMatrix == 1)
+        edges = zip(rows.tolist(), cols.tolist())
+        graph = nx.DiGraph()
+        graph.add_edges_from(edges)
+        pos = self._set_pos(graph, input_neurons)
+        nx.draw(graph, pos = pos, **kwargs)
+        plt.show()
 
 class RFSTDP:
     def __init__(self, NeuronGroup,
@@ -122,7 +155,7 @@ class RFSTDP:
         self.spike_train = NeuronGroup.spike_train
         self.reward_based = True
         self.pre_post_rate = pre_post_rate
-        self.post_pre_rate = post_pre_rate
+        post_pre_rate = post_pre_rate
         self.reward_pre_post_rate = reward_pre_post_rate
         self.reward_post_pre_rate = reward_post_pre_rate
 
@@ -139,7 +172,7 @@ class RFSTDP:
                 self.weights += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
             if not reward:
                 self.weights += self.pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
-                self.weights += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
+                self.weights += post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
 
 
 if __name__ == "__main__":
@@ -149,8 +182,9 @@ if __name__ == "__main__":
             Stimulus(0.001, lambda t: 1E-9 * np.sin(500*t), [3])
             }
 
-    G = NeuronGroup(dt = 0.001, population_size = 6, connection_chance = 1/3,
+    G = NeuronGroup(dt = 0.001, population_size = 10, connection_chance = 0.5,
                     total_time = 0.1, stimuli = stimuli, base_current = 1E-9)
+    G.show_graph(range(3), with_labels = True)
     G.run()
     G.display_spikes()
     print(G.weights)
