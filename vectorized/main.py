@@ -37,6 +37,14 @@ class NeuronGroup:
         for i, stimulus in enumerate(self.stimuli):
             self.StimuliAdjacency[stimulus.neurons, i] = True
 
+    def IF(self):
+        """
+        Simple Perfect Integrate-and-Fire Neural Model:
+        Assumes a fully-insulated memberane with resistance approaching infinity
+        """
+        Cm = self.kwargs.get("Cm", 14.7E-12) 
+        return self.potential + (self.dt * self.current)/Cm
+
     def LIF(self):
         """
         Leaky Integrate-and-Fire Neural Model
