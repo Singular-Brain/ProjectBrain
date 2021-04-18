@@ -15,18 +15,17 @@ class NeuronType(ABC):
         self.mode = None
  
 class IF(NeuronType):
-    def __init__(self, dt, Cm = 0.1):
+    def __init__(self, dt, Cm = 14.7E-12 ):
         """
-        Simple Integrate-and-Fire Neural Model:
+        Simple perfect Integrate-and-Fire Neural Model:
         Assumes a fully-insulated memberane with resistance approaching infinity
         """
         super().__init__(dt)
-        self.Cm = Cm #uF
+        self.Cm = Cm 
         self.mode = 'if'
 
-    def __call__(self, current, timestep, potential):
-        #TODO: Undefined variable 'timepoint'
-        pass #return (timestep * current[timepoint])/self.Cm
+    def __call__(self, current, previous_potential):
+        return previous_potential + (self.dt * current)/self.Cm
 
 
 class LIF(NeuronType):
