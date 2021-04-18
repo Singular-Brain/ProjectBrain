@@ -37,13 +37,13 @@ class NeuronGroup:
             self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
             self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
         self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool).to(DEVICE)
-        self.weights = np.random.rand(self.N,self.N)
-        np.fill_diagonal(self.weights, 0)
-        self.weights = torch.from_numpy(self.weights)
-        self.connections = (torch.rand(*self.weights.shape) + self.connection_chance).type(torch.int)
-        self.excitatory_neurons = (torch.rand(*self.weights.shape) + self.excitatory_chance).type(torch.int) * 2 -1
-        self.AdjacencyMatrix = self.connections * self.excitatory_neurons * self.weights
-        self.AdjacencyMatrix = self.AdjacencyMatrix.to(DEVICE)
+        weights_values = np.random.rand(self.N,self.N)
+        np.fill_diagonal(weights, 0)
+        weights_values = torch.from_numpy(weights_values)
+        self.AdjacencyMatrix = (torch.rand(self.N,self.N) + self.connection_chance).type(torch.int)
+        self.excitatory_neurons = (torch.rand(self.N,self.N) + self.excitatory_chance).type(torch.int) * 2 -1
+        self.weights = self.connections * self.excitatory_neurons * weights_values
+        self.weights = self.weights.to(DEVICE)
         self.stimuli = np.array(list(stimuli))
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)), dtype=np.bool)
         for i, stimulus in enumerate(self.stimuli):
@@ -91,7 +91,7 @@ class NeuronGroup:
             self.spike_train[:,self.timepoint] = spikes.ravel()
             self.refractory *= torch.logical_not(spikes).to(DEVICE)
             ### Transfer currents + external sources
-            new_currents = (spikes * self.AdjacencyMatrix).sum(axis = 0).reshape(self.N,1) * self.base_current
+            new_currents = (spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
             self.current += (new_currents + self.get_stimuli_current()) * open_neurons
             if self.save_history:
@@ -123,7 +123,7 @@ class RFSTDP:
         Reward-modulated Flat STDP 
         """
         self.NeuronGroup = NeuronGroup
-        self.AdjacencyMatrix = NeuronGroup.AdjacencyMatrix
+        self.weights = NeuronGroup.weights
         self.interval_timepoints = int(interval_time / NeuronGroup.dt) #timepoints
         self.total_timepoints = NeuronGroup.total_timepoints
         self.spike_train = NeuronGroup.spike_train
@@ -144,10 +144,10 @@ class RFSTDP:
             first = padded_spike_train[:,i]
             last = padded_spike_train[:,i+self.interval_timepoints]
             if reward:
-                self.AdjacencyMatrix += self.reward_pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.weights += self.reward_pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
+                self.weights += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
             if not reward:
-                self.AdjacencyMatrix += self.pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.weights += self.pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
+                self.weights += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
 
 

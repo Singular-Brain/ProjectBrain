@@ -27,11 +27,11 @@ class NeuronGroup:
         self.current = np.zeros((self.N,1))
         self.potential = np.ones((self.N,1)) * self.u_rest
         self.spike_train = np.zeros((self.N, self.total_timepoints), dtype= np.bool)
-        self.weights = np.random.rand(self.N,self.N)
-        np.fill_diagonal(self.weights, 0)
-        self.connections = (np.random.rand(*self.weights.shape) + self.connection_chance).astype(np.int)
-        self.excitatory_neurons = (np.random.rand(*self.weights.shape) + self.excitatory_chance).astype(np.int) * 2 -1 
-        self.AdjacencyMatrix = self.connections * self.excitatory_neurons * self.weights
+        weights_values = np.random.rand(self.N,self.N)
+        np.fill_diagonal(weights_values, 0)
+        self.AdjacencyMatrix = (np.random.rand(self.N, self.N) + self.connection_chance).astype(np.int)
+        self.excitatory_neurons = (np.random.rand(self.N, self.N) + self.excitatory_chance).astype(np.int) * 2 -1 
+        self.weights = self.AdjacencyMatrix * self.excitatory_neurons * weights_values
         self.stimuli = np.array(list(stimuli))
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)), dtype=np.bool)
         for i, stimulus in enumerate(self.stimuli):
@@ -76,7 +76,7 @@ class NeuronGroup:
             self.spike_train[:,self.timepoint] = spikes.ravel()
             self.refractory *= np.logical_not(spikes)
             ### Transfer currents + external sources
-            new_currents = (spikes * self.AdjacencyMatrix).sum(axis = 0).reshape(self.N,1) * self.base_current
+            new_currents = (spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
             self.current += new_currents * open_neurons
             self.current += self.get_stimuli_current() * open_neurons
@@ -116,7 +116,7 @@ class RFSTDP:
         """
         self.NeuronGroup = NeuronGroup
         self.N = NeuronGroup.N
-        self.AdjacencyMatrix = NeuronGroup.AdjacencyMatrix
+        self.weights = NeuronGroup.weights
         self.interval_timepoints = int(interval_time / NeuronGroup.dt) #timepoints
         self.total_timepoints = NeuronGroup.total_timepoints
         self.spike_train = NeuronGroup.spike_train
@@ -135,11 +135,11 @@ class RFSTDP:
             first = padded_spike_train[:,i]
             last = padded_spike_train[:,i+self.interval_timepoints]
             if reward:
-                self.AdjacencyMatrix += self.reward_pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.weights += self.reward_pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
+                self.weights += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
             if not reward:
-                self.AdjacencyMatrix += self.pre_post_rate * (first * span.reshape(1, self.N) * self.AdjacencyMatrix)
-                self.AdjacencyMatrix += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.AdjacencyMatrix)
+                self.weights += self.pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
+                self.weights += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
 
 
 if __name__ == "__main__":
@@ -153,7 +153,7 @@ if __name__ == "__main__":
                     total_time = 0.1, stimuli = stimuli, base_current = 1E-9)
     G.run()
     G.display_spikes()
-    print(G.AdjacencyMatrix)
+    print(G.weights)
     learning = RFSTDP(G)
     learning(reward = True)
-    print(G.AdjacencyMatrix)
+    print(G.weights)
