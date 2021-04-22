@@ -1,10 +1,16 @@
 import numpy as np
 import torch
-from timeit import timeit
 
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(f'Device is set to {DEVICE}')
 
+BIOLOGICAL_VARIABLES = {
+    'base_current': 1E-9,
+    'u_thresh': 35E-3,
+    'u_rest': -63E-3,
+    'tau_refractory': 0.002,
+    'excitatory_chance':  0.8,
+    "Rm": 135E6,
+    "Cm": 14.7E-12,
+}
 class Stimulus:
     def __init__(self, dt, output, neurons):
         self.output = output
@@ -17,12 +23,14 @@ class Stimulus:
 
 class NeuronGroup:
     def __init__(self, dt, population_size, connection_chance, total_time, stimuli = set(),
-    neuron_type = "LIF", **kwargs):
+    neuron_type = "LIF", biological_plausible= False, **kwargs):
         self.dt = dt
         self.N = population_size
         self.total_timepoints = int(total_time/dt)
         self.stimuli = stimuli
         self.kwargs = kwargs
+        if biological_plausible:
+            self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
         self.connection_chance = connection_chance
         self.base_current = kwargs.get('base_current', 1E-9)
         self.u_thresh = kwargs.get('u_thresh', 35E-3)
@@ -48,33 +56,36 @@ class NeuronGroup:
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)), dtype=np.bool)
         for i, stimulus in enumerate(self.stimuli):
             self.StimuliAdjacency[stimulus.neurons, i] = True
+        ### Neuron type variables:
+        if neuron_type == 'IF':
+            self.Cm = self.kwargs.get("Cm", 14.7E-12, device = DEVICE)
+        elif neuron_type == 'LIF':
+            self.Cm = torch.tensor(self.kwargs.get("Cm", 14.7E-12), device = DEVICE)
+            Rm = self.kwargs.get("Rm", 135E6)
+            tau_m = self.Cm * Rm 
+            self.exp_term = (torch.exp(-self.dt/tau_m))
+            self.u_base = ((1-self.exp_term) * self.u_rest)
 
     def IF(self):
         """
         Simple Perfect Integrate-and-Fire Neural Model:
         Assumes a fully-insulated memberane with resistance approaching infinity
         """
-        Cm = self.kwargs.get("Cm", 14.7E-12)
         new_potential = self.potential + (self.dt * self.current)/Cm
-        return new_potential.to(DEVICE)
+        return new_potential
         
     def LIF(self):
         """
         Leaky Integrate-and-Fire Neural Model
         """
-        Rm = self.kwargs.get("Rm", 135E6)
-        Cm = self.kwargs.get("Cm", 14.7E-12)
-        tau_m = Rm*Cm
-        exp_term = torch.exp(torch.tensor(-self.dt/tau_m))
-        u_base = (1-exp_term) * self.u_rest
-        new_potential = u_base + exp_term * self.potential + self.current*self.dt/Cm
-        return new_potential.to(DEVICE)
+        new_potential = self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm
+        return new_potential
 
     def get_stimuli_current(self):
         call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
         stimuli_output = call_stimuli(self.stimuli)
         stimuli_current = (stimuli_output * self.StimuliAdjacency).sum(axis = 1)
-        return torch.tensor(stimuli_current.reshape(self.N,1)).to(DEVICE)
+        return torch.tensor(stimuli_current.reshape(self.N,1), device = DEVICE)
     
     def run(self):
         for self.timepoint in range(self.total_timepoints):
@@ -84,12 +95,12 @@ class NeuronGroup:
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
-            self.current = torch.zeros((self.N,1)).to(DEVICE)
+            self.current = torch.zeros((self.N,1), device = DEVICE)
             ### Spikes 
             spikes = self.potential>self.u_thresh
             self.potential[spikes] = self.u_rest
             self.spike_train[:,self.timepoint] = spikes.ravel()
-            self.refractory *= torch.logical_not(spikes).to(DEVICE)
+            self.refractory *= torch.logical_not(spikes)
             ### Transfer currents + external sources
             new_currents = (spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
