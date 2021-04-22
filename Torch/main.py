@@ -58,7 +58,7 @@ class NeuronGroup:
             self.StimuliAdjacency[stimulus.neurons, i] = True
         ### Neuron type variables:
         if neuron_type == 'IF':
-            self.Cm = self.kwargs.get("Cm", 14.7E-12, device = DEVICE)
+            self.Cm = torch.tensor(self.kwargs.get("Cm", 14.7E-12), device = DEVICE)
         elif neuron_type == 'LIF':
             self.Cm = torch.tensor(self.kwargs.get("Cm", 14.7E-12), device = DEVICE)
             Rm = self.kwargs.get("Rm", 135E6)
