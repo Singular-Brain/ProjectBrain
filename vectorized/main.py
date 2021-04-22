@@ -2,6 +2,16 @@ import numpy as np
 import networkx as nx #Visualization
 import matplotlib.pyplot as plt
 
+BIOLOGICAL_VARIABLES = {
+    'base_current': 1E-9,
+    'u_thresh': 35E-3,
+    'u_rest': -63E-3,
+    'tau_refractory': 0.002,
+    'excitatory_chance':  0.8,
+    "Rm": 135E6,
+    "Cm": 14.7E-12,
+}
+
 class Stimulus:
     def __init__(self, dt, output, neurons):
         self.output = output
@@ -14,11 +24,13 @@ class Stimulus:
 
 class NeuronGroup:
     def __init__(self, dt, population_size, connection_chance, total_time, stimuli = set(),
-    neuron_type = "LIF", **kwargs):
+    neuron_type = "LIF", biological_plausible = False, **kwargs):
         self.dt = dt
         self.N = population_size
         self.total_timepoints = int(total_time/dt)
         self.kwargs = kwargs
+        if biological_plausible:
+            self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
         self.connection_chance = connection_chance
         self.base_current = kwargs.get('base_current', 1E-9)
         self.u_thresh = kwargs.get('u_thresh', 35E-3)
@@ -38,25 +50,28 @@ class NeuronGroup:
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)), dtype=np.bool)
         for i, stimulus in enumerate(self.stimuli):
             self.StimuliAdjacency[stimulus.neurons, i] = True
+        ### Neuron type variables:
+        if neuron_type == 'IF':
+            self.Cm = self.kwargs.get("Cm", 14.7E-12)
+        elif neuron_type == 'LIF':
+            self.Cm = self.kwargs.get("Cm", 14.7E-12)
+            Rm = self.kwargs.get("Rm", 135E6)
+            tau_m = self.Cm * Rm 
+            self.exp_term = np.exp(-self.dt/tau_m)
+            self.u_base = (1-self.exp_term) * self.u_rest
 
     def IF(self):
         """
         Simple Perfect Integrate-and-Fire Neural Model:
         Assumes a fully-insulated memberane with resistance approaching infinity
         """
-        Cm = self.kwargs.get("Cm", 14.7E-12) 
-        return self.potential + (self.dt * self.current)/Cm
+        return self.potential + (self.dt * self.current)/self.Cm
 
     def LIF(self):
         """
         Leaky Integrate-and-Fire Neural Model
         """
-        Rm = self.kwargs.get("Rm", 135E6)
-        Cm = self.kwargs.get("Cm", 14.7E-12)
-        tau_m = Rm*Cm
-        exp_term = np.exp(-self.dt/tau_m)
-        u_base = (1-exp_term) * self.u_rest
-        return u_base + exp_term * self.potential + self.current*self.dt/Cm 
+        return self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
 
     def get_stimuli_current(self):
         call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
