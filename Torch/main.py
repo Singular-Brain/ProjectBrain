@@ -38,11 +38,11 @@ class NeuronGroup:
             self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
         self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool).to(DEVICE)
         weights_values = np.random.rand(self.N,self.N)
-        np.fill_diagonal(weights, 0)
+        np.fill_diagonal(weights_values, 0)
         weights_values = torch.from_numpy(weights_values)
         self.AdjacencyMatrix = (torch.rand(self.N,self.N) + self.connection_chance).type(torch.int)
         self.excitatory_neurons = (torch.rand(self.N,self.N) + self.excitatory_chance).type(torch.int) * 2 -1
-        self.weights = self.connections * self.excitatory_neurons * weights_values
+        self.weights = self.AdjacencyMatrix * self.excitatory_neurons * weights_values
         self.weights = self.weights.to(DEVICE)
         self.stimuli = np.array(list(stimuli))
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)), dtype=np.bool)
@@ -124,6 +124,7 @@ class RFSTDP:
         """
         self.NeuronGroup = NeuronGroup
         self.weights = NeuronGroup.weights
+        self.N = NeuronGroup.N
         self.interval_timepoints = int(interval_time / NeuronGroup.dt) #timepoints
         self.total_timepoints = NeuronGroup.total_timepoints
         self.spike_train = NeuronGroup.spike_train
