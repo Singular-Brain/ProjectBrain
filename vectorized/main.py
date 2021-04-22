@@ -192,17 +192,24 @@ class RFSTDP:
 
 if __name__ == "__main__":
     stimuli = {
-            Stimulus(0.001, lambda t: .7E-9, [0,1]),
-            Stimulus(0.001, lambda t: 20E-9 * t, [2]),
-            Stimulus(0.001, lambda t: 1E-9 * np.sin(500*t), [3])
+            Stimulus(0.001, lambda t: 1, [0]),
+            # Stimulus(0.001, lambda t: 20E-9 * t, [2]),
+            # Stimulus(0.001, lambda t: 1E-9 * np.sin(500*t), [3])
             }
 
-    G = NeuronGroup(dt = 0.001, population_size = 10, connection_chance = 0.5,
-                    total_time = 0.1, stimuli = stimuli, base_current = 1E-9)
-    G.show_graph(range(3), with_labels = True)
+    G = NeuronGroup(dt = 0.001, population_size = 1000, connection_chance = 0.1, total_time = 0.1, stimuli = stimuli,
+                    base_current= 1,
+                    u_thresh= 1,
+                    u_rest= 0,
+                    tau_refractory= 0.005,
+                    excitatory_chance=  0.8,
+                    Rm= 5,
+                    Cm= 0.001)
+
     G.run()
     G.display_spikes()
-    print(G.weights)
-    learning = RFSTDP(G)
-    learning(reward = True)
-    print(G.weights)
+    G.show_graph(range(1), with_labels = True)
+    # print(G.weights)
+    # learning = RFSTDP(G)
+    # learning(reward = True)
+    # print(G.weights)
