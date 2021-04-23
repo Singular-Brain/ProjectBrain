@@ -1,10 +1,4 @@
 import numpy as np
-### Visualization
-import networkx as nx 
-import matplotlib.pyplot as plt
-import bokeh
-from bokeh.models import Range1d, Circle, ColumnDataSource, MultiLine
-from bokeh.plotting import from_networkx, figure
 
 
 BIOLOGICAL_VARIABLES = {
@@ -32,6 +26,7 @@ class NeuronGroup:
     neuron_type = "LIF", biological_plausible = False, **kwargs):
         self.dt = dt
         self.N = population_size
+        self.total_time = total_time
         self.total_timepoints = int(total_time/dt)
         self.kwargs = kwargs
         if biological_plausible:
@@ -225,29 +220,3 @@ class RFSTDP:
                 self.weights += self.pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
                 self.weights += post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
 
-
-if __name__ == "__main__":
-    stimuli = {
-            Stimulus(0.001, lambda t: 1, [0]),
-            # Stimulus(0.001, lambda t: 20E-9 * t, [2]),
-            # Stimulus(0.001, lambda t: 1E-9 * np.sin(500*t), [3])
-            }
-
-    G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 0.1, total_time = 0.1, stimuli = stimuli,
-                    base_current= 1,
-                    u_thresh= 1,
-                    u_rest= -0,
-                    tau_refractory= 0.005,
-                    excitatory_chance=  0.8,
-                    Rm= 5,
-                    Cm= 0.001,
-                    save_history = True,)
-
-    G.run()
-    G.display_spikes()
-    G.show_graph(range(1), with_labels = True)
-    # display_network(G, range(1), 5)
-    # print(G.weights)
-    # learning = RFSTDP(G)
-    # learning(reward = True)
-    # print(G.weights)
