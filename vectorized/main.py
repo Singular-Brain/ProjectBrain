@@ -1,6 +1,11 @@
 import numpy as np
-import networkx as nx #Visualization
+### Visualization
+import networkx as nx 
 import matplotlib.pyplot as plt
+import bokeh
+from bokeh.models import Range1d, Circle, ColumnDataSource, MultiLine
+from bokeh.plotting import from_networkx, figure
+
 
 BIOLOGICAL_VARIABLES = {
     'base_current': 1E-9,
@@ -148,8 +153,23 @@ class NeuronGroup:
         graph = nx.DiGraph()
         graph.add_edges_from(edges)
         pos = self._set_pos(graph, input_neurons)
-        nx.draw(graph, pos = pos, **kwargs)
-        plt.show()
+        spiked_neurones = dict([(i[0], i[1]) for i in enumerate((self.spike_train[:,self.timepoint]).astype(str))])
+        nx.set_node_attributes(graph, name='spiked_neurons', values=spiked_neurones)        
+        HOVER_TOOLTIPS = [("Neuron", "@index")]
+        plot = figure(tooltips = HOVER_TOOLTIPS,
+        tools="pan,wheel_zoom,save,reset", active_scroll='wheel_zoom',
+            x_range=Range1d(-.1, sorted(pos.values())[-1][0]+0.1),
+            y_range=Range1d(0, 1), title='Neuron Group')
+        network_graph = from_networkx(graph, pos, scale=10, center=(0, 0))
+        print(network_graph.node_renderer.data_source.data['spiked_neurons'])
+        #Set node size and color
+        network_graph.node_renderer.glyph = Circle(size=15, 
+        fill_color=bokeh.transform.factor_cmap('spiked_neurons', palette=bokeh.palettes.cividis(2), factors=['False', 'True']))
+        #Set edge opacity and width
+        network_graph.edge_renderer.glyph = MultiLine(line_alpha=0.5, line_width=1)
+        #Add network graph to the plot
+        plot.renderers.append(network_graph)
+        bokeh.io.show(plot)
 
 class RFSTDP:
     def __init__(self, NeuronGroup,
@@ -197,8 +217,8 @@ if __name__ == "__main__":
             # Stimulus(0.001, lambda t: 1E-9 * np.sin(500*t), [3])
             }
 
-    G = NeuronGroup(dt = 0.001, population_size = 1000, connection_chance = 0.1, total_time = 0.1, stimuli = stimuli,
-                    base_current= 1,
+    G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 0.1, total_time = 0.1, stimuli = stimuli,
+                    base_current= 10,
                     u_thresh= 1,
                     u_rest= 0,
                     tau_refractory= 0.005,
