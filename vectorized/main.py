@@ -100,8 +100,7 @@ class NeuronGroup:
             ### Transfer currents + external sources
             new_currents = (spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
-            self.current += new_currents * open_neurons
-            self.current += self.get_stimuli_current() * open_neurons
+            self.current += (self.get_stimuli_current() + new_currents) * open_neurons
 
     def _reset(self):
         self.refractory = np.ones((self.N,1))*self.refractory_timepoints
@@ -154,14 +153,19 @@ class NeuronGroup:
         graph.add_edges_from(edges)
         pos = self._set_pos(graph, input_neurons)
         spiked_neurones = dict([(i[0], i[1]) for i in enumerate((self.spike_train[:,self.timepoint]).astype(str))])
-        nx.set_node_attributes(graph, name='spiked_neurons', values=spiked_neurones)        
-        HOVER_TOOLTIPS = [("Neuron", "@index")]
+        nx.set_node_attributes(graph, name='spiked_neurons', values=spiked_neurones) 
+        neurons_potential = dict([(i[0], i[1][0]) for i in enumerate(self.potential)])
+        nx.set_node_attributes(graph, name='neurons_potential', values=neurons_potential) 
+        neurons_current = dict([(i[0], i[1][0]) for i in enumerate(self.current)])
+        nx.set_node_attributes(graph, name='neurons_current', values=neurons_current)
+        HOVER_TOOLTIPS = [("Neuron", "@index"),
+                          ("Potential", '@neurons_potential'),
+                          ("Current", '@neurons_current')  ]
         plot = figure(tooltips = HOVER_TOOLTIPS,
         tools="pan,wheel_zoom,save,reset", active_scroll='wheel_zoom',
             x_range=Range1d(-.1, sorted(pos.values())[-1][0]+0.1),
             y_range=Range1d(0, 1), title='Neuron Group')
         network_graph = from_networkx(graph, pos, scale=10, center=(0, 0))
-        print(network_graph.node_renderer.data_source.data['spiked_neurons'])
         #Set node size and color
         network_graph.node_renderer.glyph = Circle(size=15, 
         fill_color=bokeh.transform.factor_cmap('spiked_neurons', palette=bokeh.palettes.cividis(2), factors=['False', 'True']))
@@ -218,9 +222,9 @@ if __name__ == "__main__":
             }
 
     G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 0.1, total_time = 0.1, stimuli = stimuli,
-                    base_current= 10,
+                    base_current= 1,
                     u_thresh= 1,
-                    u_rest= 0,
+                    u_rest= -0,
                     tau_refractory= 0.005,
                     excitatory_chance=  0.8,
                     Rm= 5,
