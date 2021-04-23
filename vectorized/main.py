@@ -45,6 +45,10 @@ class NeuronGroup:
         self.refractory = np.ones((self.N,1))*self.refractory_timepoints
         self.current = np.zeros((self.N,1))
         self.potential = np.ones((self.N,1)) * self.u_rest
+        self.save_history = kwargs.get('save_history',  False)
+        if self.save_history:
+            self.current_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
+            self.potential_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
         self.spike_train = np.zeros((self.N, self.total_timepoints), dtype= np.bool)
         weights_values = np.random.rand(self.N,self.N)
         np.fill_diagonal(weights_values, 0)
@@ -90,6 +94,8 @@ class NeuronGroup:
             ### LIF update
             self.refractory +=1
             self.potential = self.LIF()
+            if self.save_history:
+                self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
             self.current = np.zeros((self.N,1)) 
             ### Spikes 
@@ -101,6 +107,8 @@ class NeuronGroup:
             new_currents = (spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current
             open_neurons = self.refractory >= self.refractory_timepoints
             self.current += (self.get_stimuli_current() + new_currents) * open_neurons
+            if self.save_history:
+                self.current_history[:,self.timepoint] = self.current.ravel()
 
     def _reset(self):
         self.refractory = np.ones((self.N,1))*self.refractory_timepoints
@@ -171,6 +179,10 @@ class NeuronGroup:
         fill_color=bokeh.transform.factor_cmap('spiked_neurons', palette=bokeh.palettes.cividis(2), factors=['False', 'True']))
         #Set edge opacity and width
         network_graph.edge_renderer.glyph = MultiLine(line_alpha=0.5, line_width=1)
+        #Set edge highlight colors
+        network_graph.edge_renderer.hover_glyph = MultiLine(line_color='blue')
+        #Highlight nodes and edges
+        network_graph.inspection_policy = bokeh.models.NodesAndLinkedEdges()
         #Add network graph to the plot
         plot.renderers.append(network_graph)
         bokeh.io.show(plot)
@@ -228,11 +240,13 @@ if __name__ == "__main__":
                     tau_refractory= 0.005,
                     excitatory_chance=  0.8,
                     Rm= 5,
-                    Cm= 0.001)
+                    Cm= 0.001,
+                    save_history = True,)
 
     G.run()
     G.display_spikes()
     G.show_graph(range(1), with_labels = True)
+    # display_network(G, range(1), 5)
     # print(G.weights)
     # learning = RFSTDP(G)
     # learning(reward = True)
