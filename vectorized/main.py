@@ -11,6 +11,17 @@ BIOLOGICAL_VARIABLES = {
     "Cm": 14.7E-12,
 }
 
+SCALED_VARIABLES = {
+    'base_current': 1e-1,
+    'u_thresh': 35,
+    'u_rest': -63,
+    'tau_refractory': 2,
+    'excitatory_chance':  .8,
+    "Rm": 1.4,
+    "Cm": .15,
+}
+
+
 #set manual seed
 def manual_seed(seed):
     np.random.seed(seed)
@@ -28,7 +39,7 @@ class Stimulus:
 
 class NeuronGroup:
     def __init__(self, dt, population_size, connection_chance, total_time, stimuli = set(),
-    neuron_type = "LIF", biological_plausible = False, **kwargs):
+    neuron_type = "LIF", biological_plausible = False, scaled_variables = False, **kwargs):
         self.dt = dt
         self.N = population_size
         self.total_time = total_time
@@ -36,6 +47,8 @@ class NeuronGroup:
         self.kwargs = kwargs
         if biological_plausible:
             self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
+        elif scaled_variables:
+            self.kwargs = {key: SCALED_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
         self.connection_chance = connection_chance
         self.base_current = kwargs.get('base_current', 1E-9)
         self.u_thresh = kwargs.get('u_thresh', 35E-3)

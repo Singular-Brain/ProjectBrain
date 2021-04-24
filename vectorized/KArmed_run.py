@@ -1,5 +1,8 @@
 from main import *
 
+# Reproducibility
+manual_seed(2045)
+
 stimuli = {
         Stimulus(0.001, lambda t: .7E-9, [0,1]),
         Stimulus(0.001, lambda t: 20E-9 * t, [2]),
