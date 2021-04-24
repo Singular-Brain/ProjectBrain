@@ -11,6 +11,11 @@ BIOLOGICAL_VARIABLES = {
     "Cm": 14.7E-12,
 }
 
+#set manual seed
+def manual_seed(seed):
+    np.random.seed(seed)
+# We set the seed to 2045 because the Singularity is near!
+
 class Stimulus:
     def __init__(self, dt, output, neurons):
         self.output = output
