@@ -201,7 +201,7 @@ class RFSTDP:
         self.spike_train = NeuronGroup.spike_train
         self.reward_based = True
         self.pre_post_rate = pre_post_rate
-        post_pre_rate = post_pre_rate
+        self.post_pre_rate = post_pre_rate
         self.reward_pre_post_rate = reward_pre_post_rate
         self.reward_post_pre_rate = reward_post_pre_rate
 
@@ -218,5 +218,5 @@ class RFSTDP:
                 self.weights += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
             if not reward:
                 self.weights += self.pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
-                self.weights += post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
+                self.weights += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
 
