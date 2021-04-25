@@ -12,13 +12,13 @@ BIOLOGICAL_VARIABLES = {
 }
 
 SCALED_VARIABLES = {
-    'base_current': 1e-1,
+    'base_current': 1,
     'u_thresh': 35,
     'u_rest': -63,
-    'tau_refractory': 2,
+    'tau_refractory': 0.002,
     'excitatory_chance':  .8,
-    "Rm": 1.4,
-    "Cm": .15,
+    "Rm": 1.4e6,
+    "Cm": 1.5e-12,
 }
 
 
@@ -44,21 +44,24 @@ class NeuronGroup:
         self.N = population_size
         self.total_time = total_time
         self.total_timepoints = int(total_time/dt)
-        self.kwargs = kwargs
+        #print(self.kwargs)
         if biological_plausible:
-            self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
+            #self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
+            self.kwargs = BIOLOGICAL_VARIABLES
         elif scaled_variables:
-            self.kwargs = {key: SCALED_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
+            self.kwargs = SCALED_VARIABLES
+            #self.kwargs = {key: SCALED_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
         self.connection_chance = connection_chance
-        self.base_current = kwargs.get('base_current', 1E-9)
-        self.u_thresh = kwargs.get('u_thresh', 35E-3)
-        self.u_rest = kwargs.get('u_rest', -63E-3)
-        self.refractory_timepoints = kwargs.get('tau_refractory', 0.002) / self.dt
-        self.excitatory_chance = kwargs.get('excitatory_chance',  0.8)
+        self.base_current = self.kwargs.get('base_current', 1E-9)
+        self.u_thresh = self.kwargs.get('u_thresh', 35E-3)
+        self.u_rest = self.kwargs.get('u_rest', -63E-3)
+        self.refractory_timepoints = self.kwargs.get('tau_refractory', 0.002) / self.dt
+        self.excitatory_chance = self.kwargs.get('excitatory_chance',  0.8)
+        #print(self.u_thresh, self.u_rest)
         self.refractory = np.ones((self.N,1))*self.refractory_timepoints
         self.current = np.zeros((self.N,1))
         self.potential = np.ones((self.N,1)) * self.u_rest
-        self.save_history = kwargs.get('save_history',  False)
+        self.save_history = self.kwargs.get('save_history',  False)
         if self.save_history:
             self.current_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
             self.potential_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
