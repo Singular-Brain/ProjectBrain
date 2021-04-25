@@ -41,6 +41,7 @@ class NeuronGroup:
     def __init__(self, dt, population_size, connection_chance, total_time, stimuli = set(),
     neuron_type = "LIF", biological_plausible = False, scaled_variables = False, **kwargs):
         self.dt = dt
+        self.neuron_type = neuron_type
         self.N = population_size
         self.total_time = total_time
         self.total_timepoints = int(total_time/dt)
@@ -107,9 +108,18 @@ class NeuronGroup:
     def run(self):
         self._reset()
         for self.timepoint in range(self.total_timepoints):
-            ### LIF update
-            self.refractory +=1
-            self.potential = self.LIF()
+            if self.neuron_type == 'LIF':
+                ### LIF update
+                self.refractory +=1
+                self.potential = self.LIF()
+            elif self.neuron_type == 'IF':
+                ### IF update
+                self.refractory +=1
+                self.potential = self.IF()
+            elif self.neuron_type == 'IZH':
+                ### IZH update
+                self.refractory +=1
+                self.potential = self.IZH()
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
