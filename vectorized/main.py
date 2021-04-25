@@ -11,6 +11,22 @@ BIOLOGICAL_VARIABLES = {
     "Cm": 14.7E-12,
 }
 
+SCALED_VARIABLES = {
+    'base_current': 1,
+    'u_thresh': 35,
+    'u_rest': -63,
+    'tau_refractory': 0.002,
+    'excitatory_chance':  .8,
+    "Rm": 1.4e6,
+    "Cm": 1.5e-12,
+}
+
+
+#set manual seed
+def manual_seed(seed):
+    np.random.seed(seed)
+# We set the seed to 2045 because the Singularity is near!
+
 class Stimulus:
     def __init__(self, dt, output, neurons):
         self.output = output
@@ -23,24 +39,29 @@ class Stimulus:
 
 class NeuronGroup:
     def __init__(self, dt, population_size, connection_chance, total_time, stimuli = set(),
-    neuron_type = "LIF", biological_plausible = False, **kwargs):
+    neuron_type = "LIF", biological_plausible = False, scaled_variables = False, **kwargs):
         self.dt = dt
+        self.neuron_type = neuron_type
         self.N = population_size
         self.total_time = total_time
         self.total_timepoints = int(total_time/dt)
         self.kwargs = kwargs
         if biological_plausible:
-            self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
+            #self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
+            self.kwargs = BIOLOGICAL_VARIABLES
+        elif scaled_variables:
+            self.kwargs = SCALED_VARIABLES
+            #self.kwargs = {key: SCALED_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
         self.connection_chance = connection_chance
-        self.base_current = kwargs.get('base_current', 1E-9)
-        self.u_thresh = kwargs.get('u_thresh', 35E-3)
-        self.u_rest = kwargs.get('u_rest', -63E-3)
-        self.refractory_timepoints = kwargs.get('tau_refractory', 0.002) / self.dt
-        self.excitatory_chance = kwargs.get('excitatory_chance',  0.8)
+        self.base_current = self.kwargs.get('base_current', 1E-9)
+        self.u_thresh = self.kwargs.get('u_thresh', 35E-3)
+        self.u_rest = self.kwargs.get('u_rest', -63E-3)
+        self.refractory_timepoints = self.kwargs.get('tau_refractory', 0.002) / self.dt
+        self.excitatory_chance = self.kwargs.get('excitatory_chance',  0.8)
         self.refractory = np.ones((self.N,1))*self.refractory_timepoints
         self.current = np.zeros((self.N,1))
         self.potential = np.ones((self.N,1)) * self.u_rest
-        self.save_history = kwargs.get('save_history',  False)
+        self.save_history = self.kwargs.get('save_history',  False)
         if self.save_history:
             self.current_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
             self.potential_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
@@ -63,6 +84,8 @@ class NeuronGroup:
             tau_m = self.Cm * Rm 
             self.exp_term = np.exp(-self.dt/tau_m)
             self.u_base = (1-self.exp_term) * self.u_rest
+        elif neuron_type == 'IZH':
+            self.recovery = np.ones((self.N,1))*self.u_rest*0.2
 
     def IF(self):
         """
@@ -76,6 +99,17 @@ class NeuronGroup:
         Leaky Integrate-and-Fire Neural Model
         """
         return self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
+    
+    def IZH(self,a=0.02, b=0.2, c =-65, d=2,
+                    c1=0.04, c2=5, c3=140, c4=1, c5=1):
+        """
+        Izhikevich Neural Model
+        """
+        self.potential = self.potential + c1*(self.potential**2)\
+            + c2*self.potential + c3-c4*self.recovery + c5*self.current
+        self.recovery += a*(b*self.potential-self.recovery)
+        return self.potential
+
 
     def get_stimuli_current(self):
         call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
@@ -86,9 +120,18 @@ class NeuronGroup:
     def run(self):
         self._reset()
         for self.timepoint in range(self.total_timepoints):
-            ### LIF update
-            self.refractory +=1
-            self.potential = self.LIF()
+            if self.neuron_type == 'LIF':
+                ### LIF update
+                self.refractory +=1
+                self.potential = self.LIF()
+            elif self.neuron_type == 'IF':
+                ### IF update
+                self.refractory +=1
+                self.potential = self.IF()
+            elif self.neuron_type == 'IZH':
+                ### IZH update
+                self.refractory +=1
+                self.potential = self.IZH()
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
@@ -96,6 +139,8 @@ class NeuronGroup:
             ### Spikes 
             spikes = self.potential>self.u_thresh
             self.potential[spikes] = self.u_rest
+            if self.neuron_type == 'IZH':
+                self.recovery[spikes] += 2
             self.spike_train[:,self.timepoint] = spikes.ravel()
             self.refractory *= np.logical_not(spikes)
             ### Transfer currents + external sources
@@ -201,7 +246,7 @@ class RFSTDP:
         self.spike_train = NeuronGroup.spike_train
         self.reward_based = True
         self.pre_post_rate = pre_post_rate
-        post_pre_rate = post_pre_rate
+        self.post_pre_rate = post_pre_rate
         self.reward_pre_post_rate = reward_pre_post_rate
         self.reward_post_pre_rate = reward_post_pre_rate
 
@@ -218,5 +263,5 @@ class RFSTDP:
                 self.weights += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
             if not reward:
                 self.weights += self.pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
-                self.weights += post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
+                self.weights += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
 
