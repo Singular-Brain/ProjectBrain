@@ -44,6 +44,7 @@ class NeuronGroup:
         self.neuron_type = neuron_type
         self.N = population_size
         self.total_time = total_time
+
         self.total_timepoints = int(total_time/dt)
         #print(self.kwargs)
         if biological_plausible:
@@ -85,6 +86,8 @@ class NeuronGroup:
             tau_m = self.Cm * Rm 
             self.exp_term = np.exp(-self.dt/tau_m)
             self.u_base = (1-self.exp_term) * self.u_rest
+        elif neuron_type == 'IZH':
+            self.recovery = np.ones((self.N,1))*self.u_rest*0.2
 
     def IF(self):
         """
@@ -98,6 +101,17 @@ class NeuronGroup:
         Leaky Integrate-and-Fire Neural Model
         """
         return self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
+    
+    def IZH(self,a=0.02, b=0.2, c =-65, d=2,
+                    c1=0.04, c2=5, c3=140, c4=1, c5=1):
+        """
+        Izhikevich Neural Model
+        """
+        self.potential = self.potential + c1*(self.potential**2)\
+            + c2*self.potential + c3-c4*self.recovery + c5*self.current
+        self.recovery += a*(b*self.potential-self.recovery)
+        return self.potential
+
 
     def get_stimuli_current(self):
         call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
@@ -127,6 +141,8 @@ class NeuronGroup:
             ### Spikes 
             spikes = self.potential>self.u_thresh
             self.potential[spikes] = self.u_rest
+            if self.neuron_type == 'IZH':
+                self.recovery[spikes] += 2
             self.spike_train[:,self.timepoint] = spikes.ravel()
             self.refractory *= np.logical_not(spikes)
             ### Transfer currents + external sources

@@ -9,13 +9,13 @@ DECODING_METHOD = 'TIME_TO_FIRST_SPIKE'
 #DECODING_METHOD = 'RATE_CODING'
 
 stimuli = {
-        Stimulus(0.001, lambda t: .6E-9, list(range(POPULATION_SIZE//10)))\
+        Stimulus(0.001, lambda t: .6E-5, list(range(POPULATION_SIZE//10)))\
         #,Stimulus(0.001, lambda t: 20E2 * t, [2]),
         #Stimulus(0.001, lambda t: 1E2 * np.sin(500*t), [3])
         }
 
 G = NeuronGroup(dt = 0.001, population_size = POPULATION_SIZE, connection_chance = 1/3,
-                total_time = 1, stimuli = stimuli, neuron_type='IF', biological_plausible=True, scaled_variables = False)
+                total_time = 1, stimuli = stimuli, neuron_type='IZH', biological_plausible=True, scaled_variables = False)
 
 learning = RFSTDP(G, interval_time = 0.004, # seconds
                  pre_post_rate = 0.001,
