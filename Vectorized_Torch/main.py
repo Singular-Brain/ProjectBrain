@@ -23,8 +23,8 @@ SEED = 2045
 
 BIOLOGICAL_VARIABLES = {
     'base_current': 1E-9,
-    'u_thresh': 35E-3,
-    'u_rest': -63E-3,
+    'u_thresh': -48E-3,
+    'u_rest': -68E-3,
     'tau_refractory': 0.002,
     'excitatory_chance':  0.8,
     "Rm": 135E6,
@@ -275,7 +275,7 @@ class RFSTDP:
             (self.interval_timepoints, self.interval_timepoints, 0, 0),
              mode='constant', value=0)
         for i in range(self.total_timepoints + self.interval_timepoints):
-            section = padded_spike_train[:,i:i+self.interval_timepoints]
+            section = padded_spike_train[:,i+1:i+self.interval_timepoints-1]
             span = section.sum(axis = 1).type(torch.bool).to(DEVICE)
             first = padded_spike_train[:,i]
             last = padded_spike_train[:,i+self.interval_timepoints]

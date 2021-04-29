@@ -22,14 +22,14 @@ stimuli = {
 
 
 G = NeuronGroup(dt = 0.001, population_size = POPULATION_SIZE, connection_chance = 0.05, total_time = 0.1, stimuli = stimuli,
-                base_current= 1,
-                u_thresh= 1,
-                u_rest= -0,
-                tau_refractory= 0.005,
-                excitatory_chance=  0.8,
-                Rm= 5,
-                Cm= 0.001,
-                save_history = True,)
+                # base_current= 1,
+                # u_thresh= 1,
+                # u_rest= -0,
+                # tau_refractory= 0.005,
+                # excitatory_chance=  0.8,
+                # Rm= 5,
+                # Cm= 0.001,
+                save_history = True,biological_plausible=True)
 
 learning = RFSTDP(G, interval_time = 0.004, # seconds
                  pre_post_rate = 0.001,
@@ -50,14 +50,14 @@ for _ in range(50):
         output = [0,0]
         #print(G.spike_train[-2])
         #print(G.spike_train[-1])
-        if len(np.where(G.spike_train[-2]==True)[0]) == 0:
+        if len(torch.where(G.spike_train[-2]==True)[0]) == 0:
             output[0] = -np.inf
         else:
-            output[0] = -np.where(G.spike_train[-2]==True)[0][0]
-        if len(np.where(G.spike_train[-1]==True)[0]) == 0:
+            output[0] = -torch.where(G.spike_train[-2]==True)[0][0]
+        if len(torch.where(G.spike_train[-1]==True)[0]) == 0:
             output[1] = -np.inf
         else:
-            output[1] = -np.where(G.spike_train[-1]==True)[0][0]
+            output[1] = -torch.where(G.spike_train[-1]==True)[0][0]
     print(output)
     if output[0] > output[1]:
         reward = True
