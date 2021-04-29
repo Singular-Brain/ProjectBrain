@@ -1,5 +1,13 @@
 import numpy as np
 
+#set manual seed
+
+def manual_seed(seed):
+    np.random.seed(seed)
+SEED=2045
+#manual_seed(SEED)
+# We set the seed to 2045 because the Singularity is near!
+
 
 BIOLOGICAL_VARIABLES = {
     'base_current': 1E-9,
@@ -20,12 +28,6 @@ SCALED_VARIABLES = {
     "Rm": 1.4e6,
     "Cm": 1.5e-12,
 }
-
-
-#set manual seed
-def manual_seed(seed):
-    np.random.seed(seed)
-# We set the seed to 2045 because the Singularity is near!
 
 class Stimulus:
     def __init__(self, dt, output, neurons):

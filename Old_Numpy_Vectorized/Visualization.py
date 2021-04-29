@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import torch
 ### Visualization
 import networkx as nx 
 import matplotlib.pyplot as plt
@@ -18,7 +17,7 @@ class NetworkPanel:
         self.group = group
         self.file_path = file_path
         self.input_neurons = input_neurons
-        rows, cols = torch.where(self.group.AdjacencyMatrix == 1)
+        rows, cols = np.where(self.group.AdjacencyMatrix == 1)
         edges = zip(rows.tolist(), cols.tolist())
         self.graph = nx.DiGraph()
         self.graph.add_edges_from(edges)
@@ -71,7 +70,7 @@ class NetworkPanel:
     def _update_network(self, timepoint):
         self._update_hover_tooltips(timepoint)
         #Update Spikes
-        spiked_neurones = dict([(i[0], i[1]) for i in enumerate((self.group.spike_train[:,timepoint].detach().cpu().numpy()).astype(str))])
+        spiked_neurones = dict([(i[0], i[1]) for i in enumerate((self.group.spike_train[:,timepoint]).astype(str))])
         nx.set_node_attributes(self.graph, name='spiked_neurons', values=spiked_neurones) 
         #Add network graph from networkx
         self.network_graph = from_networkx(self.graph, self.pos, scale=10, center=(0, 0))
