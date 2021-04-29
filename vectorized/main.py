@@ -44,7 +44,7 @@ class NeuronGroup:
         self.neuron_type = neuron_type
         self.N = population_size
         self.total_time = total_time
-
+        self.kwargs = kwargs
         self.total_timepoints = int(total_time/dt)
         #print(self.kwargs)
         if biological_plausible:
