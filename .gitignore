@@ -2,3 +2,4 @@ __pycache__/
 miscellaneous/
 debug.py
 .vscode/
+*.pyc
