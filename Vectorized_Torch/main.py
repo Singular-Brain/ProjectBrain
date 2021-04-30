@@ -1,10 +1,30 @@
 import numpy as np
+import torch
+
+if (torch.cuda.is_available()):
+    DEVICE = 'cuda'
+else:
+    DEVICE = 'cpu'
+print(f'Device is set to {DEVICE}')
+
+#set manual seed
+def manual_seed(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    from torch.backends import cudnn
+    cudnn.deterministic = True #type: ignore
+    cudnn.benchmark = False # type: ignore
+SEED = 2045
+#manual_seed(SEED)
+# We set the seed to 2045 because the Singularity is near!
+
 
 
 BIOLOGICAL_VARIABLES = {
     'base_current': 1E-9,
-    'u_thresh': 35E-3,
-    'u_rest': -63E-3,
+    'u_thresh': -48E-3,
+    'u_rest': -68E-3,
     'tau_refractory': 0.002,
     'excitatory_chance':  0.8,
     "Rm": 135E6,
@@ -21,11 +41,6 @@ SCALED_VARIABLES = {
     "Cm": 1.5e-12,
 }
 
-
-#set manual seed
-def manual_seed(seed):
-    np.random.seed(seed)
-# We set the seed to 2045 because the Singularity is near!
 
 class Stimulus:
     def __init__(self, dt, output, neurons):
@@ -44,8 +59,9 @@ class NeuronGroup:
         self.neuron_type = neuron_type
         self.N = population_size
         self.total_time = total_time
-        self.total_timepoints = int(total_time/dt)
         self.kwargs = kwargs
+        self.total_timepoints = int(total_time/dt)
+        #print(self.kwargs)
         if biological_plausible:
             #self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
             self.kwargs = BIOLOGICAL_VARIABLES
@@ -58,21 +74,23 @@ class NeuronGroup:
         self.u_rest = self.kwargs.get('u_rest', -63E-3)
         self.refractory_timepoints = self.kwargs.get('tau_refractory', 0.002) / self.dt
         self.excitatory_chance = self.kwargs.get('excitatory_chance',  0.8)
-        self.refractory = np.ones((self.N,1))*self.refractory_timepoints
-        self.current = np.zeros((self.N,1))
-        self.potential = np.ones((self.N,1)) * self.u_rest
+        self.refractory = (torch.ones((self.N,1)) * self.refractory_timepoints).to(DEVICE)
+        self.current = torch.zeros((self.N,1)).to(DEVICE)
+        self.potential = torch.ones((self.N,1)).to(DEVICE) * self.u_rest
         self.save_history = self.kwargs.get('save_history',  False)
         if self.save_history:
-            self.current_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
-            self.potential_history = np.zeros((self.N, self.total_timepoints), dtype= np.float32)
-        self.spike_train = np.zeros((self.N, self.total_timepoints), dtype= np.bool)
+            self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
+            self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
+        self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool)
         weights_values = np.random.rand(self.N,self.N)
         np.fill_diagonal(weights_values, 0)
-        self.AdjacencyMatrix = (np.random.rand(self.N, self.N) + self.connection_chance).astype(np.int)
-        self.excitatory_neurons = (np.random.rand(self.N, self.N) + self.excitatory_chance).astype(np.int) * 2 -1 
+        weights_values = torch.from_numpy(weights_values).to(DEVICE)
+        self.AdjacencyMatrix = (torch.rand(self.N,self.N) + self.connection_chance).type(torch.int).to(DEVICE)
+        self.excitatory_neurons = ((torch.rand(self.N,self.N) + self.excitatory_chance).type(torch.int) * 2 -1).to(DEVICE)
         self.weights = self.AdjacencyMatrix * self.excitatory_neurons * weights_values
+        self.weights = self.weights.to(DEVICE)
         self.stimuli = np.array(list(stimuli))
-        self.StimuliAdjacency = np.zeros((self.N, len(stimuli)), dtype=np.bool)
+        self.StimuliAdjacency = np.zeros((self.N, len(stimuli)),dtype=np.bool)
         for i, stimulus in enumerate(self.stimuli):
             self.StimuliAdjacency[stimulus.neurons, i] = True
         ### Neuron type variables:
@@ -85,7 +103,7 @@ class NeuronGroup:
             self.exp_term = np.exp(-self.dt/tau_m)
             self.u_base = (1-self.exp_term) * self.u_rest
         elif neuron_type == 'IZH':
-            self.recovery = np.ones((self.N,1))*self.u_rest*0.2
+            self.recovery = (torch.ones(self.N,1)*self.u_rest*0.2).to(DEVICE)
 
     def IF(self):
         """
@@ -115,7 +133,7 @@ class NeuronGroup:
         call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
         stimuli_output = call_stimuli(self.stimuli)
         stimuli_current = (stimuli_output * self.StimuliAdjacency).sum(axis = 1)
-        return stimuli_current.reshape(self.N,1)
+        return torch.from_numpy(stimuli_current.reshape(self.N,1)).to(DEVICE)
     
     def run(self):
         self._reset()
@@ -135,26 +153,27 @@ class NeuronGroup:
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
-            self.current = np.zeros((self.N,1)) 
+            self.current = torch.zeros(self.N,1).to(DEVICE) 
             ### Spikes 
             spikes = self.potential>self.u_thresh
             self.potential[spikes] = self.u_rest
             if self.neuron_type == 'IZH':
                 self.recovery[spikes] += 2
             self.spike_train[:,self.timepoint] = spikes.ravel()
-            self.refractory *= np.logical_not(spikes)
+            self.refractory *= torch.logical_not(spikes).to(DEVICE)
             ### Transfer currents + external sources
-            new_currents = (spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current
+            new_currents = ((spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current).to(DEVICE)
             open_neurons = self.refractory >= self.refractory_timepoints
-            self.current += (self.get_stimuli_current() + new_currents) * open_neurons
+            stim_current = self.get_stimuli_current()
+            self.current += (stim_current + new_currents) * open_neurons
             if self.save_history:
                 self.current_history[:,self.timepoint] = self.current.ravel()
 
     def _reset(self):
-        self.refractory = np.ones((self.N,1))*self.refractory_timepoints
-        self.current = np.zeros((self.N,1))
-        self.potential = np.ones((self.N,1)) * self.u_rest
-        self.spike_train = np.zeros((self.N, self.total_timepoints), dtype= np.bool)
+        self.refractory = torch.ones(self.N,1).to(DEVICE) * self.refractory_timepoints
+        self.current = torch.zeros(self.N,1).to(DEVICE)
+        self.potential = torch.ones(self.N,1).to(DEVICE) * self.u_rest
+        self.spike_train = torch.zeros((self.N, self.total_timepoints),dtype=torch.bool).to(DEVICE)
 
 
     def _spike_train_repr(self, spike_train):
@@ -195,7 +214,7 @@ class NeuronGroup:
         return pos
 
     def show_graph(self, input_neurons, **kwargs):
-        rows, cols = np.where(self.AdjacencyMatrix == 1)
+        rows, cols = torch.where(self.AdjacencyMatrix == 1).to(DEVICE)
         edges = zip(rows.tolist(), cols.tolist())
         graph = nx.DiGraph()
         graph.add_edges_from(edges)
@@ -252,10 +271,12 @@ class RFSTDP:
 
     def __call__(self, reward):
         spike_train = self.NeuronGroup.spike_train
-        padded_spike_train = np.pad(spike_train,self.interval_timepoints)[self.interval_timepoints: -self.interval_timepoints,:]
+        padded_spike_train = torch.nn.functional.pad(spike_train,
+            (self.interval_timepoints, self.interval_timepoints, 0, 0),
+             mode='constant', value=0)
         for i in range(self.total_timepoints + self.interval_timepoints):
-            section = padded_spike_train[:,i:i+self.interval_timepoints]
-            span = section.sum(axis = 1).astype(np.bool)
+            section = padded_spike_train[:,i+1:i+self.interval_timepoints-1]
+            span = section.sum(axis = 1).type(torch.bool).to(DEVICE)
             first = padded_spike_train[:,i]
             last = padded_spike_train[:,i+self.interval_timepoints]
             if reward:
