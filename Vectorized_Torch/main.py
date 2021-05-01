@@ -22,8 +22,8 @@ SEED = 2045
 
 
 BIOLOGICAL_VARIABLES = {
-    'base_current': 1E-9,
-    'u_thresh': -48E-3,
+    'base_current': 1E-9, #based on Neural Dynamics p8,single EPSP has amplitude in range of 1mV. 
+    'u_thresh': -48E-3, # The critical value for spike initiation is about 20 to 30mV above the resting potential.(P8)
     'u_rest': -68E-3,
     'tau_refractory': 0.002,
     'excitatory_chance':  0.8,
