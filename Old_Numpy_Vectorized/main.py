@@ -18,17 +18,6 @@ BIOLOGICAL_VARIABLES = {
     "Rm": 135E6,
     "Cm": 14.7E-12,
 }
-
-SCALED_VARIABLES = {
-    'base_current': 1,
-    'u_thresh': 35,
-    'u_rest': -63,
-    'tau_refractory': 0.002,
-    'excitatory_chance':  .8,
-    "Rm": 1.4e6,
-    "Cm": 1.5e-12,
-}
-
 class Stimulus:
     def __init__(self, dt, output, neurons):
         self.output = output
@@ -41,7 +30,7 @@ class Stimulus:
 
 class NeuronGroup:
     def __init__(self, network, total_time, dt, stimuli = set(),
-    neuron_type = "LIF", biological_plausible = False, scaled_variables = False,
+    neuron_type = "LIF", biological_plausible = False,
      **kwargs):
         self.dt = dt
         self.weights = network
@@ -52,11 +41,7 @@ class NeuronGroup:
         self.total_timepoints = int(total_time/dt)
         self.kwargs = kwargs
         if biological_plausible:
-            #self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
-            self.kwargs = BIOLOGICAL_VARIABLES
-        elif scaled_variables:
-            self.kwargs = SCALED_VARIABLES
-            #self.kwargs = {key: SCALED_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
+            self.kwargs.update(BIOLOGICAL_VARIABLES)
         self.base_current = self.kwargs.get('base_current', 1E-9)
         self.u_thresh = self.kwargs.get('u_thresh', -55E-3)
         self.u_rest = self.kwargs.get('u_rest', -63E-3)
