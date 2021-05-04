@@ -31,15 +31,6 @@ BIOLOGICAL_VARIABLES = {
     "Cm": 14.7E-12,
 }
 
-SCALED_VARIABLES = {
-    'base_current': 1,
-    'u_thresh': 35,
-    'u_rest': -63,
-    'tau_refractory': 0.002,
-    'excitatory_chance':  .8,
-    "Rm": 1.4e6,
-    "Cm": 1.5e-12,
-}
 
 
 class Stimulus:
@@ -53,22 +44,19 @@ class Stimulus:
 
 
 class NeuronGroup:
-    def __init__(self, dt, population_size, connection_chance, total_time, stimuli = set(),
-    neuron_type = "LIF", biological_plausible = False, scaled_variables = False, **kwargs):
+    def __init__(self, network, total_time, dt, stimuli = set(),
+    neuron_type = "LIF", biological_plausible = False,
+     **kwargs):
         self.dt = dt
+        self.weights = torch.from_numpy(network).to(DEVICE)
         self.neuron_type = neuron_type
-        self.N = population_size
+        self.AdjacencyMatrix = network.astype(bool)
+        self.N = len(network)
         self.total_time = total_time
         self.kwargs = kwargs
         self.total_timepoints = int(total_time/dt)
-        #print(self.kwargs)
         if biological_plausible:
-            #self.kwargs = {key: BIOLOGICAL_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
-            self.kwargs = BIOLOGICAL_VARIABLES
-        elif scaled_variables:
-            self.kwargs = SCALED_VARIABLES
-            #self.kwargs = {key: SCALED_VARIABLES.get(key, self.kwargs[key]) for key in self.kwargs}
-        self.connection_chance = connection_chance
+            self.kwargs.update(BIOLOGICAL_VARIABLES)
         self.base_current = self.kwargs.get('base_current', 1E-9)
         self.u_thresh = self.kwargs.get('u_thresh', 35E-3)
         self.u_rest = self.kwargs.get('u_rest', -63E-3)
@@ -82,13 +70,6 @@ class NeuronGroup:
             self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
             self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
         self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool)
-        weights_values = np.random.rand(self.N,self.N)
-        np.fill_diagonal(weights_values, 0)
-        weights_values = torch.from_numpy(weights_values).to(DEVICE)
-        self.AdjacencyMatrix = (torch.rand(self.N,self.N) + self.connection_chance).type(torch.int).to(DEVICE)
-        self.excitatory_neurons = ((torch.rand(self.N,self.N) + self.excitatory_chance).type(torch.int) * 2 -1).to(DEVICE)
-        self.weights = self.AdjacencyMatrix * self.excitatory_neurons * weights_values
-        self.weights = self.weights.to(DEVICE)
         self.stimuli = np.array(list(stimuli))
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)),dtype=np.bool)
         for i, stimulus in enumerate(self.stimuli):
@@ -190,61 +171,6 @@ class NeuronGroup:
         spike_train_display +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
         print(spike_train_display)
 
-    def _set_pos(self, graph, input_neurons):
-        pos = {}
-        for y, neuron in enumerate(input_neurons):
-            pos[neuron] = (0, (y+1) / (len(input_neurons)+1))
-        last_layer = input_neurons
-        for x in range(1, len(graph.nodes())):
-            counted_neurons = set(pos.keys()) 
-            next_layer = set()
-            for neuron in last_layer:
-                next_layer.update(graph.successors(neuron))
-            new_neurons = next_layer - counted_neurons
-            if new_neurons == set():
-                break
-            else:
-                for y, neuron in enumerate(new_neurons):
-                    pos[neuron] = (x, (y+1)/(len(new_neurons)+1))
-            last_layer = next_layer
-        not_in_input_successors =set(graph.nodes()) - set(pos.keys()) 
-        if not_in_input_successors:
-            for y, neuron in enumerate(not_in_input_successors):
-                    pos[neuron] = (x, (y+1)/(len(not_in_input_successors)+1))
-        return pos
-
-    def show_graph(self, input_neurons, **kwargs):
-        rows, cols = torch.where(self.AdjacencyMatrix == 1).to(DEVICE)
-        edges = zip(rows.tolist(), cols.tolist())
-        graph = nx.DiGraph()
-        graph.add_edges_from(edges)
-        pos = self._set_pos(graph, input_neurons)
-        spiked_neurones = dict([(i[0], i[1]) for i in enumerate((self.spike_train[:,self.timepoint]).astype(str))])
-        nx.set_node_attributes(graph, name='spiked_neurons', values=spiked_neurones) 
-        neurons_potential = dict([(i[0], i[1][0]) for i in enumerate(self.potential)])
-        nx.set_node_attributes(graph, name='neurons_potential', values=neurons_potential) 
-        neurons_current = dict([(i[0], i[1][0]) for i in enumerate(self.current)])
-        nx.set_node_attributes(graph, name='neurons_current', values=neurons_current)
-        HOVER_TOOLTIPS = [("Neuron", "@index"),
-                          ("Potential", '@neurons_potential'),
-                          ("Current", '@neurons_current')  ]
-        plot = figure(tooltips = HOVER_TOOLTIPS,
-        tools="pan,wheel_zoom,save,reset", active_scroll='wheel_zoom',
-            x_range=Range1d(-.1, sorted(pos.values())[-1][0]+0.1),
-            y_range=Range1d(0, 1), title='Neuron Group')
-        network_graph = from_networkx(graph, pos, scale=10, center=(0, 0))
-        #Set node size and color
-        network_graph.node_renderer.glyph = Circle(size=15, 
-        fill_color=bokeh.transform.factor_cmap('spiked_neurons', palette=bokeh.palettes.cividis(2), factors=['False', 'True']))
-        #Set edge opacity and width
-        network_graph.edge_renderer.glyph = MultiLine(line_alpha=0.5, line_width=1)
-        #Set edge highlight colors
-        network_graph.edge_renderer.hover_glyph = MultiLine(line_color='blue')
-        #Highlight nodes and edges
-        network_graph.inspection_policy = bokeh.models.NodesAndLinkedEdges()
-        #Add network graph to the plot
-        plot.renderers.append(network_graph)
-        bokeh.io.show(plot)
 
 class RFSTDP:
     def __init__(self, NeuronGroup,
