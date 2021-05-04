@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from AdjacencyMatrix import *
 
 if (torch.cuda.is_available()):
     DEVICE = 'cuda'

@@ -22,7 +22,7 @@ class NetworkPanel:
         edges = zip(rows.tolist(), cols.tolist())
         self.graph = nx.DiGraph()
         self.graph.add_edges_from(edges)
-        self.pos = self.group._set_pos(self.graph, self.input_neurons)
+        self.pos = self._set_pos(self.graph, self.input_neurons)
         self._update_hover_tooltips(0)
         self.plot = figure(tooltips = self.HOVER_TOOLTIPS,
             tools="pan,wheel_zoom,save,reset", active_scroll='wheel_zoom',
@@ -37,11 +37,34 @@ class NetworkPanel:
         self.button.on_click(self._animate)
         self.callback_id = None
     
+    def _set_pos(self, graph, input_neurons):
+        pos = {}
+        for y, neuron in enumerate(input_neurons):
+            pos[neuron] = (0, (y+1) / (len(input_neurons)+1))
+        last_layer = input_neurons
+        for x in range(1, len(graph.nodes())):
+            counted_neurons = set(pos.keys()) 
+            next_layer = set()
+            for neuron in last_layer:
+                next_layer.update(graph.successors(neuron))
+            new_neurons = next_layer - counted_neurons
+            if new_neurons == set():
+                break
+            else:
+                for y, neuron in enumerate(new_neurons):
+                    pos[neuron] = (x, (y+1)/(len(new_neurons)+1))
+            last_layer = next_layer
+        not_in_input_successors =set(graph.nodes()) - set(pos.keys()) 
+        if not_in_input_successors:
+            for y, neuron in enumerate(not_in_input_successors):
+                    pos[neuron] = (x, (y+1)/(len(not_in_input_successors)+1))
+        return pos
+    
     def _update_hover_tooltips(self, timepoint):
         if self.group.save_history:
-            neurons_potential = dict([(i[0], i[1]) for i in enumerate(self.group.potential_history[:,timepoint])])
+            neurons_potential = dict([(i[0], i[1]) for i in enumerate(self.group.potential_history[:,timepoint].detach().cpu().numpy())])
             nx.set_node_attributes(self.graph, name='neurons_potential', values=neurons_potential) 
-            neurons_current = dict([(i[0], i[1]) for i in enumerate(self.group.current_history[:,timepoint])])
+            neurons_current = dict([(i[0], i[1]) for i in enumerate(self.group.current_history[:,timepoint].detach().cpu().numpy())])
             nx.set_node_attributes(self.graph, name='neurons_current', values=neurons_current)
             self.HOVER_TOOLTIPS = [("Neuron", "@index"),
                                 ("Potential", '@neurons_potential'),
