@@ -27,6 +27,3 @@ def recurrent_layer_wise(layers, recurrent_connection_chance, between_connection
         index+= N  
     excitatory_neurons = (np.random.rand(population_size,1) + excitatory_chance).astype(np.int) * 2 -1       
     return weights * excitatory_neurons
-
-w = recurrent_layer_wise([2,2,2], 1,1,1,0)
-print(len(w))
