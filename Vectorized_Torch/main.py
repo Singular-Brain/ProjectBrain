@@ -6,6 +6,8 @@ if (torch.cuda.is_available()):
     DEVICE = 'cuda'
 else:
     DEVICE = 'cpu'
+
+DEVICE='cpu'
 print(f'Device is set to {DEVICE}')
 
 #set manual seed
