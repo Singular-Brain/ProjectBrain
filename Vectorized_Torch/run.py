@@ -7,6 +7,8 @@ stimuli = {
         Stimulus(0.001, lambda t: 1 * np.sin(500*t), [3])
         }
 
+# based on Neural dynamics P5, each neuron connects to more than 10^4 postsynaptic neurons,
+# and we have ~ 10^11 neurons. spikes has 100 mv apmplitude, and a duration of 1-2 ms.
 G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 0.1, total_time = 0.1, stimuli = stimuli,
                 base_current= 1,
                 u_thresh= 1,
