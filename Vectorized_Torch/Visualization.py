@@ -18,7 +18,7 @@ class NetworkPanel:
         self.group = group
         self.file_path = file_path
         self.input_neurons = input_neurons
-        rows, cols = torch.where(self.group.AdjacencyMatrix == 1)
+        rows, cols = np.where(self.group.AdjacencyMatrix == 1)
         edges = zip(rows.tolist(), cols.tolist())
         self.graph = nx.DiGraph()
         self.graph.add_edges_from(edges)
