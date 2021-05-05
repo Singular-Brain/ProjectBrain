@@ -174,7 +174,13 @@ class NeuronGroup:
         spike_train_display +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
         print(spike_train_display)
 
-
+    def f_I_Curve(self):
+        if self.neuron_type == 'LIF':
+            self.critical_current = (self.u_thresh - self.u_rest) / self.Rm
+            assert self.base_current > self.critical_current, "Please Increase the base current, it can't fire any neuron"
+            self.max_freq = 1 / (self.dt * self.self.refractory_timepoints)
+            self.freq_base_current = 1 / self.dt * (self.self.refractory_timepoints + np.log(1 / (1 - self.critical_current / self.base_current)) )
+            self.freq = 1 / self.dt * (self.self.refractory_timepoints + np.log(1 / (1 - self.critical_current / self.current)) )
 class RFSTDP:
     def __init__(self, NeuronGroup,
                  interval_time = 0.001, # seconds
