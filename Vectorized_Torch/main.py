@@ -25,8 +25,8 @@ SEED = 2045
 
 
 BIOLOGICAL_VARIABLES = {
-    'base_current': 1E-9, #based on Neural Dynamics p8,single EPSP has amplitude in range of 1mV. 
-    'u_thresh': -48E-3, # The critical value for spike initiation is about 20 to 30mV above the resting potential.(P8)
+    'base_current': 1E-9, 
+    'u_thresh': -48E-3,
     'u_rest': -68E-3,
     'tau_refractory': 0.002,
     'excitatory_chance':  0.8,
@@ -100,7 +100,8 @@ class NeuronGroup:
         """
         Leaky Integrate-and-Fire Neural Model
         """
-        return self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
+        #self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
+        return self.u_rest + self.exp_term * (self.potential - self.u_rest) + self.current*self.dt/self.Cm 
     
     def IZH(self,a=0.02, b=0.2, c =-65, d=2,
                     c1=0.04, c2=5, c3=140, c4=1, c5=1):
@@ -140,7 +141,7 @@ class NeuronGroup:
             self.current = torch.zeros(self.N,1).to(DEVICE) 
             ### Spikes 
             spikes = self.potential>self.u_thresh
-            self.potential[spikes] = self.u_rest #I think we should only change it to u_reset , which is lower than u_rest, Fig.1.8 Neural dynamics 
+            self.potential[spikes] = self.u_rest #I think we should only change it to u_reset , which is lower than u_rest, Fig.1.8 Neural dynamics(tau_refractory >> 4 * tau) 
             if self.neuron_type == 'IZH':
                 self.recovery[spikes] += 2
             self.spike_train[:,self.timepoint] = spikes.ravel()
