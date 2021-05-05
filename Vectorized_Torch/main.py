@@ -140,7 +140,7 @@ class NeuronGroup:
             self.current = torch.zeros(self.N,1).to(DEVICE) 
             ### Spikes 
             spikes = self.potential>self.u_thresh
-            self.potential[spikes] = self.u_rest
+            self.potential[spikes] = self.u_rest #I think we should only change it to u_reset , which is lower than u_rest, Fig.1.8 Neural dynamics 
             if self.neuron_type == 'IZH':
                 self.recovery[spikes] += 2
             self.spike_train[:,self.timepoint] = spikes.ravel()
