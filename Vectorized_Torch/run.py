@@ -1,5 +1,6 @@
 from Visualization import NetworkPanel
 from main import *
+from AdjacencyMatrix import random_connections, recurrent_layer_wise
 
 stimuli = {
         Stimulus(0.001, lambda t: 1, [0,1]),
@@ -9,7 +10,7 @@ stimuli = {
 
 # network = random_connections(100, connection_chance = 0.1, excitatory_chance = 0.8)
 network = recurrent_layer_wise([4, 20, 20, 20, 10, 2], recurrent_connection_chance = .05, between_connection_chance = 0.8, inside_connection_chance = 0.2, excitatory_chance = 0.8)
-G = NeuronGroup(dt = 0.001, population_size = 100, connection_chance = 0.1, total_time = 0.1, stimuli = stimuli,
+G = NeuronGroup(network = network, dt = 0.001, total_time = 0.1, stimuli = stimuli,
                 base_current= 1,
                 u_thresh= 1,
                 u_rest= -0,
