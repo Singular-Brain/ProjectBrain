@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 from AdjacencyMatrix import *
@@ -56,6 +57,7 @@ class NeuronGroup:
         self.AdjacencyMatrix = network.astype(bool)
         self.N = len(network)
         self.total_time = total_time
+        self.N_runs = 0
         self.kwargs = kwargs
         self.total_timepoints = int(total_time/dt)
         if biological_plausible:
@@ -72,6 +74,24 @@ class NeuronGroup:
         if self.save_history:
             self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
             self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
+        self.save_to_file = self.kwargs.get('save_to_file',  None)
+        if self.save_to_file and not self.save_to_file.endswith('.npy'):
+            self.save_to_file += '.npy'
+        if self.save_to_file and os.path.exists(self.save_to_file):
+            ans = input(f'File: "{self.save_to_file}" already exists! Do you want to rewrite? Y/[N]\n')
+            if ans.lower() != 'y':
+                self.save_to_file = None
+        if self.save_to_file:
+            data = {
+                    "dt":self.dt,
+                    "total_timepoints": self.total_timepoints,
+                    "save_history": self.save_history,
+                    "total_time":self.total_time,
+                    "AdjacencyMatrix": self.AdjacencyMatrix,
+                    "kwargs": {**self.kwargs},
+                    "runs":[],
+                    }
+            np.save(self.save_to_file, data)
         self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool)
         self.stimuli = np.array(list(stimuli))
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)),dtype=np.bool)
@@ -79,14 +99,17 @@ class NeuronGroup:
             self.StimuliAdjacency[stimulus.neurons, i] = True
         ### Neuron type variables:
         if neuron_type == 'IF':
+            self.NeuronType = self.IF
             self.Cm = self.kwargs.get("Cm", 14.7E-12)
         elif neuron_type == 'LIF':
+            self.NeuronType = self.LIF
             self.Cm = self.kwargs.get("Cm", 14.7E-12)
             Rm = self.kwargs.get("Rm", 135E6)
             tau_m = self.Cm * Rm 
             self.exp_term = np.exp(-self.dt/tau_m)
             self.u_base = (1-self.exp_term) * self.u_rest
         elif neuron_type == 'IZH':
+            self.NeuronType = self.IZH
             self.recovery = (torch.ones(self.N,1)*self.u_rest*0.2).to(DEVICE)
 
     def IF(self):
@@ -123,18 +146,9 @@ class NeuronGroup:
     def run(self):
         self._reset()
         for self.timepoint in range(self.total_timepoints):
-            if self.neuron_type == 'LIF':
-                ### LIF update
-                self.refractory +=1
-                self.potential = self.LIF()
-            elif self.neuron_type == 'IF':
-                ### IF update
-                self.refractory +=1
-                self.potential = self.IF()
-            elif self.neuron_type == 'IZH':
-                ### IZH update
-                self.refractory +=1
-                self.potential = self.IZH()
+            self.refractory +=1
+            ### update potentials
+            self.potential = self.NeuronType()
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
@@ -153,8 +167,21 @@ class NeuronGroup:
             self.current += (stim_current + new_currents) * open_neurons
             if self.save_history:
                 self.current_history[:,self.timepoint] = self.current.ravel()
+        if self.save_to_file:
+            data = np.load(self.save_to_file, allow_pickle=True)
+            run_data = {"run": self.N_runs,
+                "weights": self.weights,
+                "total_timepoints": self.total_timepoints,
+                "save_history": self.save_history,
+                "current_history": self.current_history,
+                "potential_history": self.potential_history,
+                }
+            print(data, type(data))
+            data[()]['runs'].append(run_data)
+            np.save(self.save_to_file, data)
 
     def _reset(self):
+        self.N_runs +=1
         self.refractory = torch.ones(self.N,1).to(DEVICE) * self.refractory_timepoints
         self.current = torch.zeros(self.N,1).to(DEVICE)
         self.potential = torch.ones(self.N,1).to(DEVICE) * self.u_rest
