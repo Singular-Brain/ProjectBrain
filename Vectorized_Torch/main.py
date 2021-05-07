@@ -171,12 +171,10 @@ class NeuronGroup:
             data = np.load(self.save_to_file, allow_pickle=True)
             run_data = {"run": self.N_runs,
                 "weights": self.weights,
-                "total_timepoints": self.total_timepoints,
-                "save_history": self.save_history,
+                "spike_train": self.spike_train,
                 "current_history": self.current_history,
                 "potential_history": self.potential_history,
                 }
-            print(data, type(data))
             data[()]['runs'].append(run_data)
             np.save(self.save_to_file, data)
 
