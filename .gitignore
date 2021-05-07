@@ -3,3 +3,4 @@ miscellaneous/
 debug.py
 .vscode/
 *.pyc
+*.npy
