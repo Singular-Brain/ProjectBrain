@@ -22,8 +22,8 @@ G = NeuronGroup(network=network, dt = 0.001, population_size = 100, connection_c
                 Cm= 0.001,
                 save_history = True,
                 save_to_file = 'RunData.npy')
-
-G.run()
+for _ in range(10):
+        G.run()
 G.display_spikes()
 panel = NetworkPanel(G, input_neurons = [0], file_path = __file__)
 panel.display()
