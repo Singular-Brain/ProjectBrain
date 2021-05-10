@@ -142,10 +142,8 @@ class NeuronGroup:
 
 
     def _spike_train_repr(self, spike_train):
-        string = ''
-        for t in spike_train:
-            string += '|' if t else ' '
-        return string
+        b = spike_train.tobytes()
+        return b.decode('UTF-8').replace('\x01', '|').replace('\x00', ' ')
 
     def display_spikes(self):
         spike_train_display = ' id\n' + '=' * 5 + '╔' + '═' * self.total_timepoints + '╗\n'
