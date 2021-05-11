@@ -105,8 +105,8 @@ class NeuronGroup:
             self.NeuronType = self.LIF
             self.Cm = self.kwargs.get("Cm", 14.7E-12)
             Rm = self.kwargs.get("Rm", 135E6)
-            tau_m = self.Cm * Rm 
-            self.exp_term = np.exp(-self.dt/tau_m)
+            self.tau_m = self.Cm * Rm 
+            self.exp_term = np.exp(-self.dt/self.tau_m)
             self.u_base = (1-self.exp_term) * self.u_rest
         elif neuron_type == 'IZH':
             self.NeuronType = self.IZH
@@ -123,9 +123,9 @@ class NeuronGroup:
         """
         Leaky Integrate-and-Fire Neural Model
         """
-        #self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
-        return self.u_rest + self.exp_term * (self.potential - self.u_rest) + self.current*self.dt/self.Cm 
-    
+        #return self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
+        return (-self.dt/self.tau_m)*(self.potential-self.u_rest) + self.dt * self.current / self.Cm
+
     def IZH(self,a=0.02, b=0.2, c =-65, d=2,
                     c1=0.04, c2=5, c3=140, c4=1, c5=1):
         """
@@ -148,7 +148,7 @@ class NeuronGroup:
         for self.timepoint in range(self.total_timepoints):
             self.refractory +=1
             ### update potentials
-            self.potential = self.NeuronType()
+            self.potential += self.NeuronType()
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
