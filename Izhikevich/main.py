@@ -1,5 +1,4 @@
 import os
-from bokeh.models.markers import X
 import numpy as np
 import torch
 from AdjacencyMatrix import *
