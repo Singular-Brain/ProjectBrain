@@ -1,4 +1,5 @@
 import os
+from bokeh.models.markers import X
 import numpy as np
 import torch
 from AdjacencyMatrix import *
@@ -49,25 +50,31 @@ class Stimulus:
 
 class NeuronGroup:
     def __init__(self, network, total_time, dt, stimuli = set(),
-    neuron_type = "LIF", biological_plausible = False,
+    neuron_type = "LIF", biological_plausible = False, reward_function = None,
      **kwargs):
         self.dt = dt
         self.weights = torch.from_numpy(network).to(DEVICE)
         self.neuron_type = neuron_type
-        self.AdjacencyMatrix = network.astype(bool)
+        self.AdjacencyMatrix = torch.from_numpy(network.astype(bool))
         self.N = len(network)
         self.total_time = total_time
         self.N_runs = 0
+        self.reward_function = reward_function
         self.kwargs = kwargs
         self.total_timepoints = int(total_time/dt)
         if biological_plausible:
             self.kwargs.update(BIOLOGICAL_VARIABLES)
+        self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
+        self.dopamine = 0
         self.base_current = self.kwargs.get('base_current', 1E-9)
         self.u_thresh = self.kwargs.get('u_thresh', 35E-3)
         self.u_rest = self.kwargs.get('u_rest', -63E-3)
         self.refractory_timepoints = self.kwargs.get('tau_refractory', 0.002) / self.dt
+        self.tau_eligibility = self.kwargs.get('tau_c', 1)
+        self.tau_dopamine = self.kwargs.get('tau_dopamine', 0.2)
         self.excitatory_chance = self.kwargs.get('excitatory_chance',  0.8)
         self.refractory = (torch.ones((self.N,1)) * self.refractory_timepoints).to(DEVICE)
+        self.reward = torch.zeros(self.total_timepoints)
         self.current = torch.zeros((self.N,1)).to(DEVICE)
         self.potential = torch.ones((self.N,1)).to(DEVICE) * self.u_rest
         self.save_history = self.kwargs.get('save_history',  False)
@@ -143,6 +150,23 @@ class NeuronGroup:
         stimuli_current = (stimuli_output * self.StimuliAdjacency).sum(axis = 1)
         return torch.from_numpy(stimuli_current.reshape(self.N,1)).to(DEVICE)
     
+    #Jesper Sjöström and Wulfram Gerstner (2010), Scholarpedia, 5(2):1362: http://www.scholarpedia.org/article/Spike-timing_dependent_plasticity
+    @staticmethod
+    def STDP_value(x, LTP_rate = 1, LTD_rate = -1.5, time_constant = 0.01):
+        if x>0:
+            return LTP_rate*torch.exp(torch.tensor(-x/time_constant))
+        elif x<0:
+            return LTD_rate*torch.exp(torch.tensor(x/time_constant))
+        return 0    
+    
+    def _STDP(self, tau):
+        return torch.tensor(list(map(lambda x: list(map(self.STDP_value, x)), tau.tolist())), dtype = torch.float64)
+
+    def _DA(self):
+        if self.reward[self.timepoint]:
+            return self.reward[self.timepoint]
+        return 0.01
+
     def run(self):
         self._reset()
         for self.timepoint in range(self.total_timepoints):
@@ -156,17 +180,47 @@ class NeuronGroup:
             ### Spikes 
             spikes = self.potential>self.u_thresh
             self.potential[spikes] = self.u_rest #I think we should only change it to u_reset , which is lower than u_rest, Fig.1.8 Neural dynamics(tau_refractory >> 4 * tau) 
-            if self.neuron_type == 'IZH':
-                self.recovery[spikes] += 2
+            # if self.neuron_type == 'IZH':
+            #     self.recovery[spikes] += 2
+            ### Online Learning
+            #TODO: check shape of spikes
+            #pre-post 
+            post_pre_connections = spikes.T * self.AdjacencyMatrix
+            active_post_pre_connections = torch.sum(post_pre_connections, axis= 1, keepdims=True).bool()
+            spike_train_slice = self.spike_train[:,:self.timepoint+1]
+            active_slice = active_post_pre_connections * spike_train_slice
+            tau_values = torch.argmax(active_slice.flip(dims = [1]).double(), axis = 1).view((1,self.N)) * self.dt #s
+            tau = tau_values * post_pre_connections
+            STDP = self._STDP(tau)
+            #post-pre
+            pre_post_connections = spikes * self.AdjacencyMatrix
+            active_pre_post_connections = torch.sum(pre_post_connections, axis= 0, keepdims=True).bool()
+            active_slice = active_pre_post_connections.T * spike_train_slice
+            tau_values = torch.argmax(active_slice.flip(dims = [1]).double(), axis = 1).view((1,self.N)) * self.dt #s
+            tau = tau_values * pre_post_connections
+            STDP += self._STDP(-tau)
+            # Update eligibility trace
+            self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility + STDP) * self.dt
+            # Update reward
+            if self.reward_function:
+                self.reward = self.reward_function(self.dt, self.spike_train, self.timepoint, self.reward)
+            # Dopamine
+            self.dopamine += (-self.dopamine/self.tau_dopamine + self._DA()) * self.dt
+            ### Update weights
+            self.weights += self.dopamine * self.eligibility_trace
+            ### Spike train
             self.spike_train[:,self.timepoint] = spikes.ravel()
             self.refractory *= torch.logical_not(spikes).to(DEVICE)
             ### Transfer currents + external sources
-            new_currents = ((spikes * self.weights).sum(axis = 0).reshape(self.N,1) * self.base_current).to(DEVICE)
+            new_currents = ((spikes * self.weights).sum(axis = 0).view(self.N,1) * self.base_current).to(DEVICE)
             open_neurons = self.refractory >= self.refractory_timepoints
             stim_current = self.get_stimuli_current()
             self.current += (stim_current + new_currents) * open_neurons
             if self.save_history:
                 self.current_history[:,self.timepoint] = self.current.ravel()
+            
+            print(self.weights)
+        
         if self.save_to_file:
             data = np.load(self.save_to_file, allow_pickle=True)
             run_data = {"run": self.N_runs,
@@ -205,43 +259,3 @@ class NeuronGroup:
             self.max_freq = 1 / (self.dt * self.self.refractory_timepoints)
             self.freq_base_current = 1 / self.dt * (self.self.refractory_timepoints + np.log(1 / (1 - self.critical_current / self.base_current)) )
             self.freq = 1 / self.dt * (self.self.refractory_timepoints + np.log(1 / (1 - self.critical_current / self.current)) )
-class RFSTDP:
-    def __init__(self, NeuronGroup,
-                 interval_time = 0.001, # seconds
-                 pre_post_rate = 0.001,
-                 reward_pre_post_rate = 0.002,
-                 post_pre_rate = -0.001,
-                 reward_post_pre_rate = 0.001,
-                 ):
-        """
-        Reward-modulated Flat STDP 
-        """
-        self.NeuronGroup = NeuronGroup
-        self.N = NeuronGroup.N
-        self.weights = NeuronGroup.weights
-        self.interval_timepoints = int(interval_time / NeuronGroup.dt) #timepoints
-        self.total_timepoints = NeuronGroup.total_timepoints
-        self.spike_train = NeuronGroup.spike_train
-        self.reward_based = True
-        self.pre_post_rate = pre_post_rate
-        self.post_pre_rate = post_pre_rate
-        self.reward_pre_post_rate = reward_pre_post_rate
-        self.reward_post_pre_rate = reward_post_pre_rate
-
-    def __call__(self, reward):
-        spike_train = self.NeuronGroup.spike_train
-        padded_spike_train = torch.nn.functional.pad(spike_train,
-            (self.interval_timepoints, self.interval_timepoints, 0, 0),
-             mode='constant', value=0)
-        for i in range(self.total_timepoints + self.interval_timepoints):
-            section = padded_spike_train[:,i+1:i+self.interval_timepoints-1]
-            span = section.sum(axis = 1).type(torch.bool).to(DEVICE)
-            first = padded_spike_train[:,i]
-            last = padded_spike_train[:,i+self.interval_timepoints]
-            if reward:
-                self.weights += self.reward_pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
-                self.weights += self.reward_post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
-            if not reward:
-                self.weights += self.pre_post_rate * (first * span.reshape(1, self.N) * self.weights)
-                self.weights += self.post_pre_rate * (span  * last.reshape(1, self.N) * self.weights)
-

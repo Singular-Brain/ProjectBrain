@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from Visualization import NetworkPanel
 from main import *
 from AdjacencyMatrix import *
@@ -10,24 +11,21 @@ stimuli = {
         }
 
 
-network = recurrent_layer_wise([1, 3, 2], recurrent_connection_chance = .05, between_connection_chance = 0.8, inside_connection_chance = 0.2, excitatory_chance = 0.8, between_connection_chance_decay=0.85)
+network = random_connections(5, connection_chance = 1, excitatory_chance = 1)
 
-G = NeuronGroup(network=network, dt = 0.001, population_size = 100, total_time = 0.1, stimuli = stimuli,
-                base_current= 1,
-                u_thresh= 1,
-                u_rest= -0,
-                tau_refractory= 0.005,
-                excitatory_chance=  0.8,
-                Rm= 5,
-                Cm= 0.001,
+def exp1_reward_function(dt, spike_train, timepoint, reward):
+    presynaptic_neuron, postsynaptic_neuron = 0, 1
+    if spike_train[postsynaptic_neuron, timepoint] and\
+        spike_train[presynaptic_neuron, timepoint-10:timepoint].any():
+        reward[np.random.randint(1/dt, 3/dt)] = 0.5
+    return reward
+
+G = NeuronGroup(network=network, dt = 0.001, total_time = 0.1, stimuli = stimuli,
+                biological_plausible = True,
+                reward_function = exp1_reward_function,
                 save_history = True,
-                save_to_file = 'RunData.npy')
-for _ in range(10):
-        G.run()
+                save_to_file = False)
+
+
+G.run()
 G.display_spikes()
-panel = NetworkPanel(G, input_neurons = [0], file_path = __file__)
-panel.display()
-print(G.weights)
-learning = RFSTDP(G)
-learning(reward = True)
-print(G.weights)
