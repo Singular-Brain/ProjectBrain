@@ -1,10 +1,11 @@
 import numpy as np
+from math import ceil
 
-def random_connections(population_size, connection_chance, excitatory_chance = 0.8):
+def random_connections(population_size, connection_chance, excitatory_ratio = 0.8):
     weights_values = np.random.rand(population_size,population_size)
     np.fill_diagonal(weights_values, 0)
     AdjacencyMatrix = (np.random.rand(population_size, population_size) + connection_chance).astype(np.int)
-    excitatory_neurons = (np.random.rand(population_size,1) + excitatory_chance).astype(np.int) * 2 -1 
+    excitatory_neurons = np.array([1]* int(excitatory_ratio * population_size) + [-1]* (ceil((1-excitatory_ratio) * population_size))).reshape((population_size, 1))
     weights = AdjacencyMatrix * excitatory_neurons * weights_values
     return weights
 
