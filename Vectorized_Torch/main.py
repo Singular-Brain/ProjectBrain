@@ -27,7 +27,7 @@ SEED = 2045
 
 BIOLOGICAL_VARIABLES = {
     'base_current': 1E-9, 
-    'u_thresh': -48E-3,
+    'u_thresh': -55E-3,
     'u_rest': -68E-3,
     'tau_refractory': 0.002,
     'excitatory_chance':  0.8,
