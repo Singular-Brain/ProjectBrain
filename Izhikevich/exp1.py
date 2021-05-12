@@ -27,7 +27,7 @@ G = NeuronGroup(network= network, dt= dt,
                 reward_function = exp1_reward_function,
                 plastic_inhibitory = False,
                 stochastic_function_b = 1/0.013,
-                stochastic_function_tau = (np.exp(-1))/(dt * 15),
+                stochastic_function_tau = (np.exp(-1))/(dt * 1),
                 save_history = False,
                 process_bar = True,
                 )

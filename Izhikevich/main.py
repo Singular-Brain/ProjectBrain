@@ -2,7 +2,7 @@ import os
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 if (torch.cuda.is_available()):
     DEVICE = 'cuda'
@@ -67,7 +67,7 @@ class NeuronGroup:
             self.kwargs.update(BIOLOGICAL_VARIABLES)
         self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
         self.dopamine = 0
-        self.window_width = self.kwargs.get('window_width', int(4 * self.kwargs.get('STDP_time_constant', 0.01)/self.dt))
+        self.window_width = self.kwargs.get('window_width', int(10 * self.kwargs.get('STDP_time_constant', 0.01)/self.dt))
         self.base_current = self.kwargs.get('base_current', 1E-9)
         self.u_thresh = self.kwargs.get('u_thresh', 35E-3)
         self.u_rest = self.kwargs.get('u_rest', -63E-3)
@@ -157,21 +157,18 @@ class NeuronGroup:
         return 1/self.kwargs.get("stochastic_function_tau", 1) *\
                torch.exp(self.kwargs.get("stochastic_function_b", 1) * (u - self.u_thresh))
 
-
-    def STDP_value(self, x, LTP_rate = 1, LTD_rate = -1.5):
+    
+    def _STDP(self, tau, LTP_rate = 1, LTD_rate = -1.5):
         """
         Jesper Sjöström and Wulfram Gerstner (2010), Scholarpedia, 5(2):1362
         http://www.scholarpedia.org/article/Spike-timing_dependent_plasticity
         """
-        if x>0:
-            return LTP_rate*torch.exp(torch.tensor(-x/self.kwargs.get('STDP_time_constant', 0.01)))
-        elif x<0:
-            return LTD_rate*torch.exp(torch.tensor(x/self.kwargs.get('STDP_time_constant', 0.01)))
-        return 0    
-    
-    def _STDP(self, tau):
-        return torch.tensor(list(map(lambda x: list(map(self.STDP_value, x)), tau.tolist())),
-                            dtype = torch.float64, device= DEVICE)
+        LTP = LTP_rate*torch.exp(-tau/0.01)
+        LTD = LTD_rate*torch.exp(tau/0.01)
+        output = torch.where(tau>0, LTP, LTD)
+        output[tau==0] = 0
+        return output
+
 
     def _DA(self):
         if self.reward[self.timepoint]:
@@ -197,21 +194,20 @@ class NeuronGroup:
             self.potential[spikes] = self.u_rest
             # if self.neuron_type == 'IZH':
             #     self.recovery[spikes] += 2
-            #TODO: DEVICE => GPU
             ### Online Learning
             #pre-post 
             post_pre_connections = spikes.T * self.AdjacencyMatrix
             active_post_pre_connections = torch.sum(post_pre_connections, axis= 1, keepdims=True).bool()
             spike_train_slice = self.spike_train[:,max(self.timepoint - self.window_width, 0):self.timepoint+1]
             active_slice = active_post_pre_connections * spike_train_slice
-            tau_values = torch.argmax(active_slice.flip(dims = [1]).double(), axis = 1).view((1,self.N)) * self.dt #s
+            tau_values = torch.argmax(active_slice.flip(dims = [1]).int(), axis = 1).view((1,self.N)) * self.dt #s
             tau = tau_values * post_pre_connections
             STDP = self._STDP(tau)
             #post-pre
             pre_post_connections = spikes * self.AdjacencyMatrix
             active_pre_post_connections = torch.sum(pre_post_connections, axis= 0, keepdims=True).bool()
             active_slice = active_pre_post_connections.T * spike_train_slice
-            tau_values = torch.argmax(active_slice.flip(dims = [1]).double(), axis = 1).view((1,self.N)) * self.dt #s
+            tau_values = torch.argmax(active_slice.flip(dims = [1]).int(), axis = 1).view((1,self.N)) * self.dt #s
             tau = tau_values * pre_post_connections
             STDP += self._STDP(-tau)
             ### Update eligibility trace
@@ -270,7 +266,7 @@ class NeuronGroup:
         print(spike_train_display)
 
     def plot_spikes(self):
-        y, x = np.where(self.spike_train)
+        y, x = np.where(self.spike_train.cpu())
         plt.figure(figsize=(20,4))
         plt.plot(x, y, '.', color='black', marker='o', markersize=2)
         plt.show()
