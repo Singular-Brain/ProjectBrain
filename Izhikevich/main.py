@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import torch
-from AdjacencyMatrix import *
+from matplotlib import pyplot as plt
 
 if (torch.cuda.is_available()):
     DEVICE = 'cuda'
@@ -259,6 +259,12 @@ class NeuronGroup:
             + '║' + self._spike_train_repr(spike_train) + '║\n'  
         spike_train_display +=' ' * 5 + '╚' + '═' * self.total_timepoints + '╝'
         print(spike_train_display)
+
+    def plot_spikes(self):
+        y, x = np.where(self.spike_train)
+        plt.figure(figsize=(20,4))
+        plt.plot(x, y, '.', color='black', marker='o', markersize=2)
+        plt.show()
 
     def f_I_Curve(self):
         if self.neuron_type == 'LIF':
