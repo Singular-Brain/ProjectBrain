@@ -33,7 +33,8 @@ G = NeuronGroup(network= network, dt= dt,
                 stochastic_function_b = 1/0.013,
                 stochastic_function_tau = (np.exp(-1))/dt,
                 save_history = True,
-                save_to_file = False)
+                process_bar = True,
+                )
 
 
 G.run()

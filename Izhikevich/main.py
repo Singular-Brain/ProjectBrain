@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 if (torch.cuda.is_available()):
     DEVICE = 'cuda'
@@ -176,7 +177,8 @@ class NeuronGroup:
 
     def run(self):
         self._reset()
-        for self.timepoint in range(self.total_timepoints):
+        for self.timepoint in tqdm(range(self.total_timepoints)) if self.kwargs.get('process_bar', False)\
+            else range(self.total_timepoints):
             self.refractory +=1
             ### update potentials
             self.potential += self.NeuronType()
