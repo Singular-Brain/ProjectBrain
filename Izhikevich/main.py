@@ -163,11 +163,7 @@ class NeuronGroup:
         Jesper Sjöström and Wulfram Gerstner (2010), Scholarpedia, 5(2):1362
         http://www.scholarpedia.org/article/Spike-timing_dependent_plasticity
         """
-        LTP = LTP_rate*torch.exp(-tau/0.01)
-        LTD = LTD_rate*torch.exp(tau/0.01)
-        output = torch.where(tau>0, LTP, LTD)
-        output[tau==0] = 0
-        return output
+        return (tau > 0) * LTP_rate * torch.exp(-tau/0.01) + (tau < 0) * LTD_rate * torch.exp(tau/0.01)
 
 
     def _DA(self):
@@ -195,21 +191,16 @@ class NeuronGroup:
             # if self.neuron_type == 'IZH':
             #     self.recovery[spikes] += 2
             ### Online Learning
-            #pre-post 
+            spike_train_slice_flip = self.spike_train[:,max(self.timepoint - self.window_width, 0):self.timepoint+1].flip(dims = [1]).int()
+            ### pre-post 
             post_pre_connections = spikes.T * self.AdjacencyMatrix
-            active_post_pre_connections = torch.sum(post_pre_connections, axis= 1, keepdims=True).bool()
-            spike_train_slice = self.spike_train[:,max(self.timepoint - self.window_width, 0):self.timepoint+1]
-            active_slice = active_post_pre_connections * spike_train_slice
-            tau_values = torch.argmax(active_slice.flip(dims = [1]).int(), axis = 1).view((1,self.N)) * self.dt #s
-            tau = tau_values * post_pre_connections
-            STDP = self._STDP(tau)
-            #post-pre
+            tau_values = torch.argmax(spike_train_slice_flip, axis = 1).view((1,self.N)) * self.dt #s
+            pre_post_tau = torch.sum(post_pre_connections, axis= 1, keepdims=True).bool() * tau_values * post_pre_connections
+            ### post-pre
             pre_post_connections = spikes * self.AdjacencyMatrix
-            active_pre_post_connections = torch.sum(pre_post_connections, axis= 0, keepdims=True).bool()
-            active_slice = active_pre_post_connections.T * spike_train_slice
-            tau_values = torch.argmax(active_slice.flip(dims = [1]).int(), axis = 1).view((1,self.N)) * self.dt #s
-            tau = tau_values * pre_post_connections
-            STDP += self._STDP(-tau)
+            tau_values = torch.argmax(spike_train_slice_flip, axis = 1).view((1,self.N)) * self.dt #s
+            post_pre_tau = -1 * torch.sum(pre_post_connections, axis= 0, keepdims=True).bool().T * tau_values * pre_post_connections
+            STDP = self._STDP(pre_post_tau + post_pre_tau)
             ### Update eligibility trace
             self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility + STDP) * self.dt
             ### Update reward
