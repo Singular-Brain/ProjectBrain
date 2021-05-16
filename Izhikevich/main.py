@@ -198,9 +198,9 @@ class NeuronGroup:
             ### STDP matrix
             STDP = torch.zeros((self.N, self.N), device=DEVICE)
             ### post-pre spikes (= pre-post connections)
-            STDP[spikes,:] = self.AdjacencyMatrix[spikes,:] * - 1.5 * self.STDP_trace[spikes]
+            STDP[spikes,:] = self.AdjacencyMatrix[spikes,:] * - 1.5 * self.STDP_trace.T
             ### pre-post spikes (= post-pre connections)
-            STDP[:,spikes] = self.AdjacencyMatrix[:,spikes]  * self.STDP_trace[spikes].T
+            STDP[:,spikes] = self.AdjacencyMatrix[:,spikes]  * self.STDP_trace
             #TODO: handle simultaneous pre-post spikes
             ### Update eligibility trace
             self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility + STDP) * self.dt
