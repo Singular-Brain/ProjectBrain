@@ -124,10 +124,13 @@ class NeuronGroup:
             self.u_rest = -65.0
             self.potential = torch.ones(self.N,1,device=DEVICE) * self.u_rest
             self.recovery = self.potential*0.2
+            self.current = 13*(torch.rand(self.N,1)-0.5)
             self.d = torch.ones(self.N, 1, device=DEVICE)
             self.a = torch.ones(self.N, 1, device=DEVICE)
             self.d[self.d * self.excitatory_neurons >= 0.01] = 8
             self.d[self.d * self.inhibitory_neurons >= 0.01] = 2
+            self.a[self.a * self.excitatory_neurons >= 0.01] = 0.02
+            self.a[self.a * self.inhibitory_neurons >= 0.01] = 0.1
 
         self.stochastic_spikes = self.kwargs.get('stochastic_spikes', False)
  
@@ -145,15 +148,11 @@ class NeuronGroup:
         #return self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
         return (-self.dt/self.tau_m)*(self.potential-self.u_rest) + self.dt * self.current / self.Cm
  
-    def IZH(self,a=0.02, b=0.2, c =-65, d=2,
-                    c1=0.04, c2=5, c3=140, c4=1, c5=1):
+    def IZH(self):
         """
         Izhikevich Neural Model
         """
-        self.potential = self.potential + c1*(self.potential**2)\
-            + c2*self.potential + c3-c4*self.recovery + c5*self.current
-        self.recovery += a*(b*self.potential-self.recovery)
-        return self.potential
+        return (0.04*self.potential+5)*self.potential+140-self.recovery+self.current
  
  
     def get_stimuli_current(self):
@@ -184,23 +183,29 @@ class NeuronGroup:
         fig, axs = plt.subplots(3,figsize=(20,20))
         for self.timepoint in tqdm(range(self.total_timepoints)) if self.kwargs.get('process_bar', False)\
             else range(self.total_timepoints):
+            self.current = 13*(torch.rand(self.N,1)-0.5)
             self.refractory +=1
             ### update potentials
-            self.potential += self.NeuronType()
+            ## Numerical stability
+            self.potential += 0.5*self.NeuronType()
+            self.potential += 0.5*self.NeuronType()
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
-            ### Reset currents
-            self.current = torch.zeros(self.N,1).to(DEVICE) 
+            if self.neuron_type == 'IZH':
+                self.recovery += self.a*(0.2*self.potential-self.recovery)
+            else:
+                ### Reset currents
+                self.current = torch.zeros(self.N,1).to(DEVICE) 
             ### Spikes 
-            if self.stochastic_spikes:
+            if self.stochastic_spikes and self.neuron_type != 'IZH':
                 spikes_matrix = self._stochastic_function(self.potential) > torch.rand(self.N,1, device =DEVICE)
             else:
                 spikes_matrix = self.potential>self.u_thresh   # torch.Size([N, 1])
             self.potential[spikes_matrix] = self.u_rest
-            # if self.neuron_type == 'IZH':
-            #     self.recovery[spikes] += 2
             ### Online Learning
             spikes = spikes_matrix.ravel()
+            if self.neuron_type == 'IZH':
+                self.recovery[spikes] += self.d[spikes]
             self.STDP_trace *= 0.95 #tau = 20ms
             self.STDP_trace[spikes] = 0.1
             ### STDP matrix
