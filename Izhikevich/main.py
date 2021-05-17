@@ -120,7 +120,15 @@ class NeuronGroup:
             self.u_base = (1-self.exp_term) * self.u_rest
         elif neuron_type == 'IZH':
             self.NeuronType = self.IZH
-            self.recovery = (torch.ones(self.N,1)*self.u_rest*0.2).to(DEVICE)
+            self.u_thresh = 30.0
+            self.u_rest = -65.0
+            self.potential = torch.ones(self.N,1,device=DEVICE) * self.u_rest
+            self.recovery = self.potential*0.2
+            self.d = torch.ones(self.N, 1, device=DEVICE)
+            self.a = torch.ones(self.N, 1, device=DEVICE)
+            self.d[self.d * self.excitatory_neurons >= 0.01] = 8
+            self.d[self.d * self.inhibitory_neurons >= 0.01] = 2
+
         self.stochastic_spikes = self.kwargs.get('stochastic_spikes', False)
  
     def IF(self):
