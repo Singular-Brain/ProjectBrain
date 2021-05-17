@@ -54,7 +54,7 @@ class NeuronGroup:
         self.dt = dt
         self.weights = torch.from_numpy(network).to(DEVICE)
         self.N = len(network)
-        self.excitetory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) + 1)/2).view(self.N, 1).to(DEVICE)
+        self.excitatory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) + 1)/2).view(self.N, 1).to(DEVICE)
         self.inhibitory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) - 1)/-2).view(self.N, 1).to(DEVICE)
         self.neuron_type = neuron_type
         self.AdjacencyMatrix = torch.from_numpy(network.astype(bool)).to(DEVICE)
@@ -224,9 +224,9 @@ class NeuronGroup:
             self.dopamine += (-self.dopamine/self.tau_dopamine + self.reward[self.timepoint]) * self.dt
             ### Update weights
             self.weights += self.dopamine * self.eligibility_trace *\
-                (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitetory_neurons)
+                (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitatory_neurons)
             ### Hard bound:
-            self.weights[self.weights * self.excitetory_neurons < 0] = 0.001
+            self.weights[self.weights * self.excitatory_neurons < 0] = 0.001
             self.weights[self.weights > 1] = 1
             ### Spike train
             self.spike_train[:,self.timepoint] = spikes
