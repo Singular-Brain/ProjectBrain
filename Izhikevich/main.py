@@ -2,13 +2,13 @@ import os
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-from tqdm import tqdm
- 
+from tqdm.notebook import tqdm
+
 if (torch.cuda.is_available()):
     DEVICE = 'cuda'
 else:
     DEVICE = 'cpu'
- 
+
 print(f'Device is set to {DEVICE}')
  
 #set manual seed
@@ -54,8 +54,8 @@ class NeuronGroup:
         self.dt = dt
         self.weights = torch.from_numpy(network).to(DEVICE)
         self.N = len(network)
-        self.excitetory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) + 1)/2).view(self.N, 1).to(DEVICE)
-        self.inhibitory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) - 1)/-2).view(self.N, 1).to(DEVICE)
+        self.excitatory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) + 1)/2).view(self.N, 1).bool().to(DEVICE)
+        self.inhibitory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) - 1)/-2).view(self.N, 1).bool().to(DEVICE)
         self.neuron_type = neuron_type
         self.AdjacencyMatrix = torch.from_numpy(network.astype(bool)).to(DEVICE)
         self.total_time = total_time
@@ -72,14 +72,19 @@ class NeuronGroup:
         self.u_thresh = self.kwargs.get('u_thresh', 35E-3)
         self.u_rest = self.kwargs.get('u_rest', -63E-3)
         self.refractory_timepoints = self.kwargs.get('tau_refractory', 0.002) / self.dt
-        self.tau_eligibility = self.kwargs.get('tau_c', 1)
+        self.tau_eligibility = self.kwargs.get('tau_eligibilit', 1)
         self.tau_dopamine = self.kwargs.get('tau_dopamine', 0.2)
         self.excitatory_chance = self.kwargs.get('excitatory_chance',  0.8)
         self.refractory = torch.ones((self.N,1), device = DEVICE) * self.refractory_timepoints
-        self.reward = torch.ones(self.total_timepoints, device = DEVICE) * 0.01
+        self.reward = torch.zeros(self.total_timepoints, device = DEVICE)
         self.current = torch.zeros((self.N,1), device = DEVICE)
         self.potential = torch.ones((self.N,1), device = DEVICE) * self.u_rest
         self.STDP_trace = torch.zeros((self.N,1), device = DEVICE)
+        self.setup_online_plot = self.kwargs.get('setup_online_plot',  False)
+        self.update_online_plot = self.kwargs.get('update_online_plot',  False)
+        self.online_plot = self.setup_online_plot and self.update_online_plot
+        if (self.setup_online_plot==False) ^ (self.update_online_plot==False):
+            print("To use 'online plot' set both 'setup_online_plot' and 'update_online_plot' functions!")
         self.save_history = self.kwargs.get('save_history',  False)
         if self.save_history:
             self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
@@ -120,7 +125,19 @@ class NeuronGroup:
             self.u_base = (1-self.exp_term) * self.u_rest
         elif neuron_type == 'IZH':
             self.NeuronType = self.IZH
-            self.recovery = (torch.ones(self.N,1)*self.u_rest*0.2).to(DEVICE)
+            self.u_thresh = 30.0
+            self.u_rest = -65.0
+            self.sm = 4
+            self.dopamine = 0.0
+            self.potential = torch.ones(self.N,1,device=DEVICE) * self.u_rest
+            self.recovery = self.potential*0.2
+            self.current = 13*(torch.rand(self.N,1)-0.5).to(DEVICE)
+            self.d = torch.ones(self.N, 1, device=DEVICE)
+            self.a = torch.ones(self.N, 1, device=DEVICE)
+            self.d[self.d * self.excitatory_neurons >= 0.01] = 8
+            self.d[self.d * self.inhibitory_neurons >= 0.01] = 2
+            self.a[self.a * self.excitatory_neurons >= 0.01] = 0.02
+            self.a[self.a * self.inhibitory_neurons >= 0.01] = 0.1
         self.stochastic_spikes = self.kwargs.get('stochastic_spikes', False)
  
     def IF(self):
@@ -137,15 +154,11 @@ class NeuronGroup:
         #return self.u_base + self.exp_term * self.potential + self.current*self.dt/self.Cm 
         return (-self.dt/self.tau_m)*(self.potential-self.u_rest) + self.dt * self.current / self.Cm
  
-    def IZH(self,a=0.02, b=0.2, c =-65, d=2,
-                    c1=0.04, c2=5, c3=140, c4=1, c5=1):
+    def IZH(self):
         """
         Izhikevich Neural Model
         """
-        self.potential = self.potential + c1*(self.potential**2)\
-            + c2*self.potential + c3-c4*self.recovery + c5*self.current
-        self.recovery += a*(b*self.potential-self.recovery)
-        return self.potential
+        return (0.04*self.potential+5)*self.potential+140-self.recovery+self.current
  
  
     def get_stimuli_current(self):
@@ -159,99 +172,119 @@ class NeuronGroup:
                torch.exp(self.kwargs.get("stochastic_function_b", 1) * (u - self.u_thresh))
  
     
-    def _STDP(self, tau, LTP_rate = 1, LTD_rate = -1.5):
-        """
-        Jesper Sjöström and Wulfram Gerstner (2010), Scholarpedia, 5(2):1362
-        http://www.scholarpedia.org/article/Spike-timing_dependent_plasticity
-        """
-        return (tau > 0) * LTP_rate * torch.exp(-tau/0.01) + (tau < 0) * LTD_rate * torch.exp(tau/0.01)
- 
- 
+    def _STDP(self, spikes, LTP_rate = 1, LTD_rate = -1.5):
+        STDP = torch.zeros((self.N, self.N), device=DEVICE)
+        ### post-pre spikes (= pre-post connections)
+        STDP[spikes,:] = LTD_rate *self.AdjacencyMatrix[spikes,:] * self.STDP_trace.T
+        ### pre-post spikes (= post-pre connections)
+        STDP[:,spikes] = LTP_rate *  self.AdjacencyMatrix[:,spikes]  * self.STDP_trace 
+        #TODO: handle simultaneous pre-post spikes
+        return STDP
+
  
     def run(self):
         self._reset()
-        ### Figure setups:
-        # target_weights = []
-        # plot_times = []
-        # plt.ion()
-        fig, axs = plt.subplots(3,figsize=(20,20))
-        for self.timepoint in tqdm(range(self.total_timepoints)) if self.kwargs.get('process_bar', False)\
+        if self.online_plot:
+            self._setup_online_plot()
+        if self.neuron_type == 'LIF':
+            for self.timepoint in tqdm(range(self.total_timepoints)) if self.kwargs.get('process_bar', False)\
+                else range(self.total_timepoints):
+                self.refractory +=1
+                ### update potentials
+                self.potential += 0.5*self.NeuronType() # To Improve approximation 
+                self.potential += 0.5*self.NeuronType() # and numerical stability
+                if self.save_history:
+                    self.potential_history[:,self.timepoint] = self.potential.ravel()
+                ### Reset currents
+                self.current = torch.zeros(self.N,1).to(DEVICE) 
+                ### Spikes 
+                if self.stochastic_spikes:
+                    spikes_matrix = self._stochastic_function(self.potential) > torch.rand(self.N,1, device =DEVICE)
+                else:
+                    spikes_matrix = self.potential>self.u_thresh   # torch.Size([N, 1])
+                self.potential[spikes_matrix] = self.u_rest
+                ### Online Learning
+                spikes = spikes_matrix.ravel()
+                self.STDP_trace *= 0.95 #tau = 20ms
+                self.STDP_trace[spikes] = 0.1
+                ### STDP matrix
+                STDP = self._STDP(spikes)
+                ### Update eligibility trace
+                self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility + STDP) * self.dt
+                ### Update reward
+                if self.reward_function:
+                    self.reward = self.reward_function(self.dt, self.spike_train, spikes, self.timepoint, self.reward)
+                ### Dopamine
+                self.dopamine += (-self.dopamine/self.tau_dopamine + self.reward[self.timepoint]) * self.dt
+                ### Update weights
+                self.weights += (0.002+self.dopamine) * self.eligibility_trace *\
+                    (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitatory_neurons)
+                ### Hard bound:
+                self.weights[(self.weights * self.excitatory_neurons) < 0] = 0.001
+                self.weights[self.weights > 1] = 1
+                ### Spike train
+                self.spike_train[:,self.timepoint] = spikes
+                self.refractory *= torch.logical_not(spikes_matrix).to(DEVICE)
+                ### Transfer currents + external sources
+                new_currents = ((spikes_matrix * self.weights).sum(axis = 0).view(self.N,1) * self.base_current).to(DEVICE)
+                open_neurons = self.refractory >= self.refractory_timepoints
+                stim_current = self.get_stimuli_current() if self.stimuli else 0
+                self.current += (stim_current + new_currents) * open_neurons
+                if self.save_history:
+                    self.current_history[:,self.timepoint] = self.current.ravel()
+                if self.online_plot:
+                    self._update_online_plot()
+
+
+        elif self.neuron_type == 'IZH':
+            self.sd = torch.zeros(*self.weights.shape).to(DEVICE)
+            for self.timepoint in tqdm(range(self.total_timepoints)) if self.kwargs.get('process_bar', False)\
             else range(self.total_timepoints):
-            self.refractory +=1
-            ### update potentials
-            self.potential += self.NeuronType()
-            if self.save_history:
-                self.potential_history[:,self.timepoint] = self.potential.ravel()
-            ### Reset currents
-            self.current = torch.zeros(self.N,1).to(DEVICE) 
-            ### Spikes 
-            if self.stochastic_spikes:
-                spikes_matrix = self._stochastic_function(self.potential) > torch.rand(self.N,1, device =DEVICE)
-            else:
+                if self.save_history:
+                    self.potential_history[:,self.timepoint] = self.potential.ravel()
+                ## Initialize currents
+                self.current = 13*(torch.rand(self.N,1)-0.5).to(DEVICE)
+                ## Spikes
                 spikes_matrix = self.potential>self.u_thresh   # torch.Size([N, 1])
-            self.potential[spikes_matrix] = self.u_rest
-            # if self.neuron_type == 'IZH':
-            #     self.recovery[spikes] += 2
-            ### Online Learning
-            spikes = spikes_matrix.ravel()
-            self.STDP_trace *= 0.95 #tau = 20ms
-            self.STDP_trace[spikes] = 0.1
-            ### STDP matrix
-            STDP = torch.zeros((self.N, self.N), device=DEVICE)
-            ### post-pre spikes (= pre-post connections)
-            STDP[spikes,:] = self.AdjacencyMatrix[spikes,:] * - 1.5 * self.STDP_trace.T
-            ### pre-post spikes (= post-pre connections)
-            STDP[:,spikes] = self.AdjacencyMatrix[:,spikes]  * self.STDP_trace
-            #TODO: handle simultaneous pre-post spikes
-            ### Update eligibility trace
-            self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility + STDP) * self.dt
-            ### Update reward
-            if self.reward_function:
-                self.reward = self.reward_function(self.dt, self.spike_train, spikes, self.timepoint, self.reward)
-            ### Dopamine
-            self.dopamine += (-self.dopamine/self.tau_dopamine + self.reward[self.timepoint]) * self.dt
-            ### Update weights
-            self.weights += self.dopamine * self.eligibility_trace *\
-                (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitetory_neurons)
-            ### Hard bound:
-            self.weights[self.weights * self.excitetory_neurons < 0] = 0.001
-            self.weights[self.weights > 1] = 1
-            ### Spike train
-            self.spike_train[:,self.timepoint] = spikes
-            self.refractory *= torch.logical_not(spikes_matrix).to(DEVICE)
-            ### Transfer currents + external sources
-            new_currents = ((spikes_matrix * self.weights).sum(axis = 0).view(self.N,1) * self.base_current).to(DEVICE)
-            open_neurons = self.refractory >= self.refractory_timepoints
-            stim_current = self.get_stimuli_current() if self.stimuli else 0
-            self.current += (stim_current + new_currents) * open_neurons
-            if self.save_history:
-                self.current_history[:,self.timepoint] = self.current.ravel()
-            if False and (self.timepoint == self.total_timepoints-1 or self.timepoint%1000==0):
-                target_weights.append(self.weights[0][1].cpu())
-                plot_times.append(self.timepoint/1000)
-                y, x = np.where(self.spike_train[:,:self.timepoint].cpu())
-                axs[0].clear()
-                axs[1].clear()
-                axs[2].clear()
-                #spike train
-                axs[0].plot(x/1000, y, '.', color='black', marker='o', markersize=100/np.sqrt(len(x)))
-                axs[0].set_xlim([0,self.timepoint/1000])
-                axs[0].set_ylim([0,self.N])
-                # weights histogram
-                axs[1].hist(self.weights.cpu()[self.weights>0], bins = 100)
-                #target synapse's weight and rewarsd
-                axs[2].plot(plot_times, target_weights,)
-                rewards = np.where(self.reward.cpu() > 0.1)[0]
-                axs[2].plot(rewards, np.ones_like(rewards), 'r*')
-                axs[2].set_ylim([-0.1,1.1])
-                # local 
-                fig.canvas.draw()
-                fig.canvas.flush_events()
-                # google colab:
-                # display.clear_output(wait=True)
-                # display.display(plt.gcf())
- 
- 
+                spikes = spikes_matrix.ravel()
+                self.potential[spikes] = self.u_rest
+                self.recovery[spikes] += self.d[spikes]
+                self.STDP_trace[spikes] = 0.1
+                ### STDP matrix
+                STDP = self._STDP(spikes)
+                ### update current
+                new_currents = ((spikes_matrix * self.weights).sum(axis = 0).view(self.N,1)).to(DEVICE)
+                self.current += new_currents
+                self.sd += STDP
+                ### update potentials
+                self.potential += 0.5*self.NeuronType()
+                self.potential += 0.5*self.NeuronType()
+                ### update recovery
+                self.recovery += self.a*(0.2*self.potential-self.recovery)
+                ### Online Learning
+                self.STDP_trace *= 0.95 #tau = 20ms
+                ### Dopamine
+                self.dopamine *= 0.995
+                ### Update weights every 10 ms
+                if self.timepoint % 10 == 0:
+                    self.weights += (0.002+self.dopamine) * self.sd *\
+                        (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitatory_neurons)
+                    ### Hard bound:
+                    self.weights[(self.weights * self.excitatory_neurons) < 0] = 0.001
+                    self.weights[self.weights > self.sm] = self.sm
+                    self.sd *= 0.99
+                ### Update reward
+                if self.reward_function:
+                    self.reward = self.reward_function(self.dt, self.spike_train, spikes, self.timepoint, self.reward)
+                    self.dopamine += self.reward[self.timepoint]
+                ### Spike train
+                self.spike_train[:,self.timepoint] = spikes
+                if self.save_history:
+                    self.current_history[:,self.timepoint] = self.current.ravel()
+                if self.online_plot:
+                    self._update_online_plot()
+
+
         if self.save_to_file:
             data = np.load(self.save_to_file, allow_pickle=True)
             run_data = {"run": self.N_runs,
