@@ -170,9 +170,10 @@ class NeuronGroup:
  
     def run(self):
         self._reset()
-        target_weights = []
-        plot_times = []
-        plt.ion()
+        ### Figure setups:
+        # target_weights = []
+        # plot_times = []
+        # plt.ion()
         fig, axs = plt.subplots(3,figsize=(20,20))
         for self.timepoint in tqdm(range(self.total_timepoints)) if self.kwargs.get('process_bar', False)\
             else range(self.total_timepoints):
@@ -225,7 +226,7 @@ class NeuronGroup:
             self.current += (stim_current + new_currents) * open_neurons
             if self.save_history:
                 self.current_history[:,self.timepoint] = self.current.ravel()
-            if self.timepoint == self.total_timepoints-1 or self.timepoint%1000==0:
+            if False and (self.timepoint == self.total_timepoints-1 or self.timepoint%1000==0):
                 target_weights.append(self.weights[0][1].cpu())
                 plot_times.append(self.timepoint/1000)
                 y, x = np.where(self.spike_train[:,:self.timepoint].cpu())
