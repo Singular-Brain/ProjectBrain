@@ -1,11 +1,11 @@
 import os
 import numpy as np
-from main import *
-from AdjacencyMatrix import *
+from main import NeuronGroup
+from AdjacencyMatrix import uniform_connections
 
 dt = 0.001
 
-network = uniform_connections(100, connection_chance = 0.2, excitatory_ratio = 0.8)
+network = uniform_connections(1000, connection_chance = 0.2, excitatory_ratio = 0.8)
 network[0,1] = 0.01
 initial_network = network.copy()
 
@@ -19,7 +19,7 @@ def exp1_reward_function(dt, spike_train, spikes, timepoint, reward):
     return reward
 
 G = NeuronGroup(network= network, dt= dt,
-                total_time = 15,
+                total_time = 10,
                 stimuli = set(),
                 biological_plausible = True,
                 neuron_type = "LIF", 
@@ -29,9 +29,9 @@ G = NeuronGroup(network= network, dt= dt,
                 stochastic_function_b = 1/0.013,
                 stochastic_function_tau = (np.exp(-1))/(dt * 1),
                 save_history = False,
-                process_bar = True,
+                process_bar = False,
                 )
 
 
 G.run()
-G.plot_spikes()
+# G.plot_spikes()
