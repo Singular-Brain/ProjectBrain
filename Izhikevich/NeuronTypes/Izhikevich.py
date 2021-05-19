@@ -56,9 +56,9 @@ class NeuronGroup:
         self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
         self.dopamine = 0
         self.window_width = self.kwargs.get('window_width', int(10 * self.kwargs.get('STDP_time_constant', 0.01)/self.dt))
-        self.base_current = self.kwargs.get('base_current', 1E-9)
-        self.u_thresh = self.kwargs.get('u_thresh', 35E-3)
-        self.u_rest = self.kwargs.get('u_rest', -63E-3)
+        self.base_current = self.kwargs.get('base_current', 6E-11)
+        self.u_thresh = self.kwargs.get('u_thresh', -55E-3)
+        self.u_rest = self.kwargs.get('u_rest', -68E-3)
         self.refractory_timepoints = self.kwargs.get('tau_refractory', 0.002) / self.dt
         self.tau_eligibility = self.kwargs.get('tau_eligibilit', 1)
         self.tau_dopamine = self.kwargs.get('tau_dopamine', 0.2)
