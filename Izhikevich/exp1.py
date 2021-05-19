@@ -10,15 +10,15 @@ network = uniform_connections(1000, connection_chance = 0.1, excitatory_ratio = 
 network[0,1] = 0.01
 initial_network = network.copy()
 
-def exp1_reward_function(dt, spike_train, spikes, timepoint, reward):
+def exp1_reward_function(self, spikes):
     min_, max_ = 1,3
     presynaptic_neuron, postsynaptic_neuron = 0, 1
     if spikes[postsynaptic_neuron] and\
-        spike_train[presynaptic_neuron, timepoint-10:timepoint].any():
-        target_time = timepoint + np.random.randint(min_/dt, max_/dt)
-        if target_time < len(reward):
-            reward[target_time] = 0.5
-    return reward
+         self.spike_train[presynaptic_neuron,  self.timepoint-10: self.timepoint].any():
+        target_time =  self.timepoint + np.random.randint(min_/dt, max_/dt)
+        if target_time < len( self.reward):
+             self.reward[target_time] = 0.5
+    return  self.reward
 
 
 def setup_online_plot(self):

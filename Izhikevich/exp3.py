@@ -15,18 +15,18 @@ stimulus = {
         Stimulus(dt, lambda t: 1 if t%10==0 else 0, range(50)),
         }
 
-def exp1_reward_function(dt, spike_train, spikes, timepoint, reward):
-    if timepoint%10000 == 20: # 20ms after stimulus injection
-        groupA = spike_train[50:100, timepoint-20: timepoint].sum()
-        groupB = spike_train[100:150, timepoint-20: timepoint].sum()
-        if groupA > groupB:
-            reward[timepoint  + np.random.randint(0, 1/dt)] = 0.5
-    return reward
+def exp1_reward_function(self, spikes,):
+    if self.timepoint%10000 == 20: # 20ms after stimulus injection
+        self.groupA = self.spike_train[50:100, self.timepoint-20: self.timepoint].sum()
+        self.groupB = self.spike_train[100:150, self.timepoint-20: self.timepoint].sum()
+        if self.groupA > self.groupB:
+            self.reward[self.timepoint  + np.random.randint(0, 1/dt)] = 0.5
+    return self.reward
 
 
 def setup_online_plot(self):
-    self.groupA = []
-    self.groupB = []
+    self.RecordsGroupA = []
+    self.RecordsGroupB = []
     fig, axs = plt.subplots(2,figsize=(20,10))
     plt.ion()
     plt.show()
@@ -34,8 +34,8 @@ def setup_online_plot(self):
 
 def update_online_plot(self, fig, axs):
     if self.timepoint%10000 == 20: # 20ms after stimulus injection
-        self.groupA.append(self.spike_train[50:100, self.timepoint-20: self.timepoint].sum())
-        self.groupB.append(self.spike_train[100:150, self.timepoint-20: self.timepoint].sum())
+        self.RecordsGroupA.append(self.groupA)
+        self.RecordsGroupB.append(self.groupB)
         for i in range(2):
             axs[i].clear()
         x,y = np.where(self.spike_train[:150, self.timepoint-20: self.timepoint].cpu())
@@ -46,8 +46,8 @@ def update_online_plot(self, fig, axs):
         axs[0].plot((0,20),(100,100), color='blue', markersize=0.5, alpha = 0.5)
         axs[0].set_xlabel(f'Trial {(self.timepoint//10000) + 1}')
         ###
-        axs[1].plot(self.groupA)
-        axs[1].plot(self.groupB)
+        axs[1].plot(self.RecordsGroupA)
+        axs[1].plot(self.RecordsGroupB)
         ### local:
         fig.canvas.draw()
         fig.canvas.flush_events()

@@ -186,7 +186,7 @@ class NeuronGroup:
                 self.sd *= 0.99
             ### Update reward
             if self.reward_function:
-                self.reward = self.reward_function(self.dt, self.spike_train, spikes, self.timepoint, self.reward)
+                self.reward = self.reward_function(self, spikes)
                 self.dopamine += self.reward[self.timepoint]
             ### Spike train
             self.spike_train[:,self.timepoint] = spikes

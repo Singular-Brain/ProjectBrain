@@ -175,7 +175,7 @@ class NeuronGroup:
             self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility) * self.dt + STDP
             ### Update reward
             if self.reward_function:
-                self.reward = self.reward_function(self.dt, self.spike_train, spikes, self.timepoint, self.reward)
+                self.reward = self.reward_function(self, spikes)
             ### Dopamine
             self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + self.reward[self.timepoint]
             ### Update weights
