@@ -9,12 +9,11 @@ def random_connections(population_size, connection_chance, excitatory_ratio = 0.
     weights = AdjacencyMatrix * excitatory_neurons * weights_values
     return weights
 
-def uniform_connections(population_size, connection_chance, excitatory_ratio = 0.8):
-    weights_values = np.ones((population_size,population_size)) * 0.25
-    np.fill_diagonal(weights_values, 0)
+def uniform_connections(population_size, connection_chance, excitetory_weight = 0.25, inhibitory_weight = -0.25, excitatory_ratio = 0.8):
     AdjacencyMatrix = (np.random.rand(population_size, population_size) + connection_chance).astype(np.int)
-    excitatory_neurons = np.array([1]* int(excitatory_ratio * population_size) + [-1]* (ceil((1-excitatory_ratio) * population_size))).reshape((population_size, 1))
-    weights = AdjacencyMatrix * excitatory_neurons * weights_values
+    excitatory_neurons = np.array([excitetory_weight]* int(excitatory_ratio * population_size) + [inhibitory_weight]* (ceil((1-excitatory_ratio) * population_size))).reshape((population_size, 1))
+    weights = AdjacencyMatrix * excitatory_neurons 
+    np.fill_diagonal(weights, 0)
     return weights
     
 def recurrent_layer_wise(layers, recurrent_connection_chance, between_connection_chance, inside_connection_chance, excitatory_chance = 0.8, between_connection_chance_decay=1.0):
