@@ -4,3 +4,4 @@ debug.py
 .vscode/
 *.pyc
 *.npy
+tmp_*
