@@ -26,7 +26,7 @@ class NetworkPanel:
         self.pos = self._set_pos(self.graph, self.input_neurons)
         self._update_hover_tooltips(0)
         self.plot = figure(
-            plot_width=1000, plot_height=520,
+            plot_width=1000, plot_height=500,
             tooltips = self.HOVER_TOOLTIPS,
             tools="pan,wheel_zoom,save,reset", active_scroll='wheel_zoom',
             x_range=Range1d(-.1, sorted(self.pos.values())[-1][0]+0.1),
@@ -35,11 +35,17 @@ class NetworkPanel:
         #Slider
         self.slider = Slider(start=0, end= int(self.group.total_time/ self.group.dt) - 1, value=0, step=1, title="timepoint")
         self.slider.on_change('value', self._slider_update)
-        #Button
-        self.button = Button(label='► Play', width=60)
-        self.button.on_click(self._animate)
-        self.callback_id = None
-    
+        #Play Button
+        self.play_button = Button(label='► Play', width=60)
+        self.play_button.on_click(self._animate)
+        self.play_callback_id = None
+        #Next Button
+        self.next_button = Button(label='⇨', width=30)
+        self.next_button.on_click(self._next_timepoint)
+        #Previous Button
+        self.previous_button = Button(label='⇦', width=30)
+        self.previous_button.on_click(self._previous_timepoint)
+
     def _update_hover_tooltips(self, timepoint):
         if self.group.save_history:
             neurons_potential = dict([(i[0], i[1]) for i in enumerate(self.group.potential_history[:,timepoint].cpu().numpy())])
@@ -84,14 +90,25 @@ class NetworkPanel:
         self.slider.value = self.timepoint
 
     def _animate(self):
-        if self.button.label == '► Play':
-            self.button.label = '❚❚ Pause'
-            self.callback_id = curdoc().add_periodic_callback(self._animate_update, 200)
+        if self.play_button.label == '► Play':
+            self.play_button.label = '❚❚ Pause'
+            self.play_callback_id = curdoc().add_periodic_callback(self._animate_update, 200)
         else:
-            self.button.label = '► Play'
-            curdoc().remove_periodic_callback(self.callback_id)
+            self.play_button.label = '► Play'
+            curdoc().remove_periodic_callback(self.play_callback_id)
 
+    def _next_timepoint(self):
+        self.timepoint = self.slider.value + 1
+        if self.timepoint > int(self.group.total_time/ self.group.dt) -1 :
+            self.timepoint = 0
+        self.slider.value = self.timepoint
 
+    def _previous_timepoint(self):
+        self.timepoint = self.slider.value - 1
+        if self.timepoint < 0 :
+            self.timepoint = 0
+        self.slider.value = self.timepoint
+        
     def _slider_update(self, attrname, old, new):
         timepoint = self.slider.value
         self._update_network(timepoint)
@@ -122,7 +139,7 @@ class NetworkPanel:
     def display(self):
         self.layout = bokeh.layouts.layout([
             [self.plot],
-            [self.slider, self.button]
+            [[self.slider], [self.play_button,[self.previous_button, self.next_button]]]
         ], sizing_mode='scale_width')
         curdoc().add_root(self.layout)
         curdoc().title = "Neuron Group"
@@ -155,10 +172,10 @@ class NetworkPanelData:
         #Timepoint slider
         self.timepoint_slider = Slider(start=0, end= int(self.data['total_time']/ self.data['dt']) - 1, value=0, step=1, title="timepoint")
         self.timepoint_slider.on_change('value', self._timepoint_slider_update)
-        #Button
-        self.button = Button(label='► Play', width=60)
-        self.button.on_click(self._animate)
-        self.callback_id = None
+        #Buttons
+        self.play_button = Button(label='► Play', width=60)
+        self.play_button.on_click(self._animate)
+        self.play_callback_id = None
     
     def _update_hover_tooltips(self, timepoint):
         if self.data['save_history']:
@@ -204,12 +221,12 @@ class NetworkPanelData:
         self.timepoint_slider.value = self.timepoint
 
     def _animate(self):
-        if self.button.label == '► Play':
-            self.button.label = '❚❚ Pause'
-            self.callback_id = curdoc().add_periodic_callback(self._animate_update, 200)
+        if self.play_button.label == '► Play':
+            self.play_button.label = '❚❚ Pause'
+            self.play_callback_id = curdoc().add_periodic_callback(self._animate_update, 200)
         else:
-            self.button.label = '► Play'
-            curdoc().remove_periodic_callback(self.callback_id)
+            self.play_button.label = '► Play'
+            curdoc().remove_periodic_callback(self.play_callback_id)
 
     def _runs_slider_update(self, attrname, old, new):
         self.run = int(self.run_slider.value - 1)
@@ -248,7 +265,7 @@ class NetworkPanelData:
         self.layout = bokeh.layouts.layout([
             [self.run_slider],
             [self.plot],
-            [self.timepoint_slider, self.button]
+            [self.timepoint_slider, self.play_button]
         ], sizing_mode='scale_width')
         curdoc().add_root(self.layout)
         curdoc().title = "Neuron Group"
