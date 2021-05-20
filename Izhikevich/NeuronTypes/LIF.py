@@ -39,7 +39,7 @@ BIOLOGICAL_VARIABLES = {
  
 class NeuronGroup:
     def __init__(self, network, total_time, dt, stimuli = set(),
-    biological_plausible = False, reward_function = None,
+    biological_plausible = False, reward_function = None, online_learning = False,
      **kwargs):
         self.dt = dt
         self.weights = torch.from_numpy(network).to(DEVICE)
@@ -52,32 +52,41 @@ class NeuronGroup:
         self.reward_function = reward_function
         self.kwargs = kwargs
         self.total_timepoints = int(total_time/dt)
+        ### neurons variables
         if biological_plausible:
-            self.kwargs.update(BIOLOGICAL_VARIABLES)
-        self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
-        self.dopamine = 0
-        self.window_width = self.kwargs.get('window_width', int(10 * self.kwargs.get('STDP_time_constant', 0.01)/self.dt))
+            self.kwargs.update(BIOLOGICAL_VARIABLES)        
         self.base_current = self.kwargs.get('base_current', 6E-11)
         self.u_thresh = self.kwargs.get('u_thresh', -55E-3)
         self.u_rest = self.kwargs.get('u_rest', -68E-3)
         self.refractory_timepoints = self.kwargs.get('tau_refractory', 0.002) / self.dt
-        self.tau_eligibility = self.kwargs.get('tau_eligibilit', 1)
-        self.tau_dopamine = self.kwargs.get('tau_dopamine', 0.2)
         self.excitatory_chance = self.kwargs.get('excitatory_chance',  0.8)
+        ### neurons variables
         self.refractory = torch.ones((self.N,1), device = DEVICE) * self.refractory_timepoints
         self.reward = torch.zeros(self.total_timepoints, device = DEVICE)
         self.current = torch.zeros((self.N,1), device = DEVICE)
         self.potential = torch.ones((self.N,1), device = DEVICE) * self.u_rest
-        self.STDP_trace = torch.zeros((self.N,1), device = DEVICE)
+        self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool)
+        ### online learning
+        self.online_learning = online_learning
+        if self.online_learning:
+            self.STDP_trace = torch.zeros((self.N,1), device = DEVICE)
+            self.STDP = torch.zeros((self.N, self.N), device=DEVICE)
+            self.tau_eligibility = self.kwargs.get('tau_eligibilit', 1)
+            self.tau_dopamine = self.kwargs.get('tau_dopamine', 0.2)
+            self.dopamine = 0
+            self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
+        ### online plot
         self.setup_online_plot = self.kwargs.get('setup_online_plot',  False)
         self.update_online_plot = self.kwargs.get('update_online_plot',  False)
         self.online_plot = self.setup_online_plot and self.update_online_plot
         if (self.setup_online_plot==False) ^ (self.update_online_plot==False):
             print("To use 'online plot' set both 'setup_online_plot' and 'update_online_plot' functions!")
+        ### save history
         self.save_history = self.kwargs.get('save_history',  False)
         if self.save_history:
             self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
             self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
+        ### save to file
         self.save_to_file = self.kwargs.get('save_to_file',  None)
         if self.save_to_file and not self.save_to_file.endswith('.npy'):
             self.save_to_file += '.npy'
@@ -96,7 +105,7 @@ class NeuronGroup:
                     "runs":[],
                     }
             np.save(self.save_to_file, data)
-        self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool)
+        ### stimuli
         self.stimuli = np.array(list(stimuli))
         self.StimuliAdjacency = np.zeros((self.N, len(stimuli)),dtype=np.bool)
         self.stochastic_spikes = self.kwargs.get('stochastic_spikes', False)
@@ -135,15 +144,14 @@ class NeuronGroup:
                torch.exp(self.kwargs.get("stochastic_function_b", 1) * (u - self.u_thresh))
  
     
-    def _STDP(self, spikes, LTP_rate = 1, LTD_rate = -1.5):
-        STDP = torch.zeros((self.N, self.N), device=DEVICE)
+    def _update_STDP(self, spikes, LTP_rate = 1, LTD_rate = -1.5):
+        # reset STDP
+        self.STDP.fill_(0)
         ### post-pre spikes (= pre-post connections)
-        STDP[spikes,:] = LTD_rate *self.AdjacencyMatrix[spikes,:] * self.STDP_trace.T
+        self.STDP[spikes,:] = LTD_rate * self.AdjacencyMatrix[spikes,:] * self.STDP_trace.T
         ### pre-post spikes (= post-pre connections)
-        STDP[:,spikes] = LTP_rate *  self.AdjacencyMatrix[:,spikes]  * self.STDP_trace 
+        self.STDP[:,spikes] = LTP_rate * self.AdjacencyMatrix[:,spikes] * self.STDP_trace 
         #TODO: handle simultaneous pre-post spikes
-        return STDP
-
  
     def run(self):
         self._reset()
@@ -164,26 +172,27 @@ class NeuronGroup:
                 spikes_matrix = self._stochastic_function(self.potential) > torch.rand(self.N,1, device =DEVICE)
             else:
                 spikes_matrix = self.potential>self.u_thresh   # torch.Size([N, 1])
+            spikes = spikes_matrix.ravel()
             self.potential[spikes_matrix] = self.u_rest
             ### Online Learning
-            spikes = spikes_matrix.ravel()
-            self.STDP_trace *= 0.95 #tau = 20ms
-            self.STDP_trace[spikes] = 0.1
-            ### STDP matrix
-            STDP = self._STDP(spikes)
-            ### Update eligibility trace
-            self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility) * self.dt + STDP
-            ### Update reward
-            if self.reward_function:
-                self.reward = self.reward_function(self, spikes)
-            ### Dopamine
-            self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + self.reward[self.timepoint]
-            ### Update weights
-            self.weights += (0.002+self.dopamine) * self.eligibility_trace *\
-                (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitatory_neurons)
-            ### Hard bound:
-            self.weights[(self.weights * self.excitatory_neurons) < 0] = 0.001
-            self.weights[self.weights > 1] = 1
+            if self.online_learning:
+                self.STDP_trace *= 0.95 #tau = 20ms
+                self.STDP_trace[spikes] = 0.1
+                ### update STDP matrix
+                self._update_STDP(spikes)
+                ### Update eligibility trace
+                self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility) * self.dt + self.STDP
+                ### Update reward
+                if self.reward_function:
+                    self.reward = self.reward_function(self, spikes)
+                ### Dopamine
+                self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + self.reward[self.timepoint]
+                ### Update weights
+                self.weights += (0.002+self.dopamine) * self.eligibility_trace *\
+                    (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitatory_neurons)
+                ### Hard bound:
+                self.weights[(self.weights * self.excitatory_neurons) < 0] = 0.001
+                self.weights[self.weights > 1] = 1
             ### Spike train
             self.spike_train[:,self.timepoint] = spikes
             self.refractory *= torch.logical_not(spikes_matrix).to(DEVICE)
