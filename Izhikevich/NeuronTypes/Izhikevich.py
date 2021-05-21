@@ -125,7 +125,7 @@ class NeuronGroup:
  
  
     def get_stimuli_current(self):
-        call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
+        call_stimuli =  np.vectorize(lambda stim: stim())
         stimuli_output = call_stimuli(self.stimuli)
         stimuli_current = (stimuli_output * self.StimuliAdjacency).sum(axis = 1)
         return torch.from_numpy(stimuli_current.reshape(self.N,1)).to(DEVICE)
