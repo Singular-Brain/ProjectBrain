@@ -1,14 +1,8 @@
 class Stimulus:
-    def __init__(self, output, neurons):
-        self.timepoint = 0
+    def __init__(self, dt, output, neurons):
         self.output = output
         self.neurons = neurons
-        self.generator = self.generator_function()
+        self.dt = dt
 
-    def generator_function(self):
-        while True:
-            yield self.output(self.timepoint)
-            self.timepoint +=1
-
-    def __call__(self,):
-        return next(self.generator)
+    def __call__(self, timestep):
+        return self.output(timestep * self.dt)
