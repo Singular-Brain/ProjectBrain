@@ -20,8 +20,7 @@ def exp1_reward_function(self, spikes,):
         self.groupA = self.spike_train[50:100, self.timepoint-20: self.timepoint].sum()
         self.groupB = self.spike_train[100:150, self.timepoint-20: self.timepoint].sum()
         if self.groupA > self.groupB:
-            self.reward[self.timepoint  + np.random.randint(0, 1/dt)] = 0.5
-    return self.reward
+            self.reward[self.timepoint  + np.random.randint(0, 1/dt)] = self.groupA / min(self.groupB,1)
 
 
 def setup_online_plot(self):
@@ -59,6 +58,7 @@ def update_online_plot(self, fig, axs):
 G = NeuronGroup(network= network, dt= dt,
                 total_time = 1000,
                 stimuli = stimulus,
+                online_learning = True,
                 biological_plausible = True,
                 stochastic_spikes = True,
                 reward_function = exp1_reward_function,
