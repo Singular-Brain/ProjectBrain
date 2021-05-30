@@ -74,6 +74,9 @@ class NeuronGroup:
             self.tau_eligibility = self.kwargs.get('tau_eligibilit', 1)
             self.tau_dopamine = self.kwargs.get('tau_dopamine', 0.2)
             self.dopamine = 0
+            self.base_dopamine = self.kwargs.get('base_dopamine', 0.002)
+            self.LTP_rate = self.kwargs.get('LTP_rate',1)
+            self.LTD_rate = self.kwargs.get('LTD_rate', -1.5)
             self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
         ### online plot
         self.setup_online_plot = self.kwargs.get('setup_online_plot',  False)
@@ -144,13 +147,13 @@ class NeuronGroup:
                torch.exp(self.kwargs.get("stochastic_function_b", 1) * (u - self.u_thresh))
  
     
-    def _update_STDP(self, spikes, LTP_rate = 1, LTD_rate = -1.5):
+    def _update_STDP(self, spikes,):
         # reset STDP
         self.STDP.fill_(0)
         ### post-pre spikes (= pre-post connections)
-        self.STDP[spikes,:] = LTD_rate * self.AdjacencyMatrix[spikes,:] * self.STDP_trace.T
+        self.STDP[spikes,:] = self.LTD_rate * self.AdjacencyMatrix[spikes,:] * self.STDP_trace.T
         ### pre-post spikes (= post-pre connections)
-        self.STDP[:,spikes] = LTP_rate * self.AdjacencyMatrix[:,spikes] * self.STDP_trace 
+        self.STDP[:,spikes] = self.LTP_rate * self.AdjacencyMatrix[:,spikes] * self.STDP_trace 
         #TODO: handle simultaneous pre-post spikes
  
     def run(self):
@@ -184,11 +187,11 @@ class NeuronGroup:
                 self.eligibility_trace += (-self.eligibility_trace/self.tau_eligibility) * self.dt + self.STDP
                 ### Update reward
                 if self.reward_function:
-                    self.reward = self.reward_function(self, spikes)
+                    self.reward_function(self, spikes)
                 ### Dopamine
                 self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + self.reward[self.timepoint]
                 ### Update weights
-                self.weights += (0.002+self.dopamine) * self.eligibility_trace *\
+                self.weights += (self.base_dopamine+self.dopamine) * self.eligibility_trace *\
                     (1 if self.kwargs.get('plastic_inhibitory', True) else self.excitatory_neurons)
                 ### Hard bound:
                 self.weights[(self.weights * self.excitatory_neurons) < 0] = 0.001
