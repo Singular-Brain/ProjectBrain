@@ -223,11 +223,11 @@ class NeuronGroup:
  
     def _reset(self):
         self.N_runs +=1
-        self.refractory = torch.ones(self.N,1).to(DEVICE) * self.refractory_timepoints
-        self.current = torch.zeros(self.N,1).to(DEVICE)
-        self.potential = torch.ones(self.N,1).to(DEVICE) * self.u_rest
-        self.spike_train = torch.zeros((self.N, self.total_timepoints),dtype=torch.bool).to(DEVICE)
- 
+        self.refractory = torch.ones((self.N,1), device = DEVICE) * self.refractory_timepoints
+        self.reward = torch.zeros(self.total_timepoints, device = DEVICE)
+        self.current = torch.zeros((self.N,1), device = DEVICE)
+        self.potential = torch.ones((self.N,1), device = DEVICE) * self.u_rest
+        self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool)
  
     def _spike_train_repr(self, spike_train):
         b = spike_train.cpu().numpy().tobytes()
