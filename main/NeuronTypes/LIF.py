@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+from ..callbacks import CallbackList
 
 # set DEVICE
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -32,7 +33,7 @@ BIOLOGICAL_VARIABLES = {
 
 class NeuronGroup:
     def __init__(self, network, total_time, dt, biological_plausible = False,
-                reward_function = None, learning_rule = None,
+                reward_function = None, learning_rule = None, callbacks = [],
                 **kwargs):
         self.dt = dt
         self.weights = torch.from_numpy(network).to(DEVICE)
@@ -45,6 +46,11 @@ class NeuronGroup:
         self.reward_function = reward_function
         self.kwargs = kwargs
         self.total_timepoints = int(total_time/dt)
+        ### callbacks
+        if isinstance(callbacks, CallbackList):
+            self.callbacks = callbacks
+        else:
+            self.callbacks = CallbackList(callbacks)
         ### neurons variables
         if biological_plausible:
             self.kwargs.update(BIOLOGICAL_VARIABLES)        
@@ -120,8 +126,10 @@ class NeuronGroup:
         self._make_stimuli_adjacency(stimuli)
         if self.online_plot:
             fig, axs = self.setup_online_plot(self)
+        self.callbacks.on_run_start(self.N_runs)
         for self.timepoint in tqdm(range(self.total_timepoints)) if progress_bar \
         else range(self.total_timepoints):
+            self.callbacks.on_timepoint_start(self.timepoint)
             self.refractory +=1
             ### update potentials
             self.potential += 0.5*self._update_potential() # To Improve approximation 
@@ -155,7 +163,8 @@ class NeuronGroup:
                 self.current_history[:,self.timepoint] = self.current.ravel()
             if self.online_plot:
                 self.update_online_plot(self, fig, axs)
-
+            self.callbacks.on_timepoint_end(self.timepoint)
+        self.callbacks.on_run_end(self.N_runs)
  
     def _reset(self):
         self.N_runs +=1
