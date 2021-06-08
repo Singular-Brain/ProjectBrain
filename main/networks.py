@@ -23,7 +23,7 @@ class Network:
         for attr_name,attr in self.__dict__.items():
             if isinstance(attr, NeuronGroup):
                 attr.name = attr_name
-                attr.idx = (idx, idx + attr.N)
+                attr.idx = slice(idx, idx + attr.N)
                 idx += attr.N
                 excitatory_neurons += attr.excitatory_neurons.tolist()
                 inhibitory_neurons += attr.inhibitory_neurons.tolist()
@@ -31,9 +31,9 @@ class Network:
         self.total_neurons = sum([group.N for group in self._groups])
         self.weights = torch.zeros((self.total_neurons, self.total_neurons), device = DEVICE)
         for group in self._groups:
-            self.weights[group.idx[0]:group.idx[1], group.idx[0]:group.idx[1]] = group.weights
+            self.weights[group.idx, group.idx] = group.weights
         for connection in self._connections:
-            self.weights[connection.from_.idx[0]:connection.from_.idx[1], connection.to.idx[0]:connection.to.idx[1]] = connection.weights
+            self.weights[connection.from_.idx, connection.to.idx] = connection.weights
         self.adjacency_matrix = self.weights.bool()
         self.excitatory_neurons = torch.tensor(excitatory_neurons, dtype= torch.bool, device = DEVICE)
         self.inhibitory_neurons = torch.tensor(inhibitory_neurons, dtype= torch.bool, device = DEVICE)
@@ -56,7 +56,9 @@ class RandomConnect(Connection):
         self.weights = weights_values * self.adjacency_matrix
 
 class NeuronGroup(ABC):
-    ...
+    @property
+    def weight_values(self):
+        return self.weights[self.weights != 0]
 
 class RandomConnections(NeuronGroup):
     def __init__(self, population_size, connection_chance, excitatory_ratio = 0.8,):
