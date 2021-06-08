@@ -11,41 +11,39 @@ dt = 0.001
 
 network = recurrent_layer_wise([28*28, 512, 100], recurrent_connection_chance = 0.02,
     between_connection_chance = [0.1, 0.1], inside_connection_chance = [0, 0.1, 0.05],
-    excitatory_ratio = 0.8)
+    excitatory_ratio = [0, .8, 0])
 initial_network = network.copy()
 
-def exp1_reward_function(self, spikes):
-    min_, max_ = 1,3
-    presynaptic_neuron, postsynaptic_neuron = 0, 1
-    if spikes[postsynaptic_neuron] and\
-         self.spike_train[presynaptic_neuron,  self.timepoint-10: self.timepoint].any():
-        target_time =  self.timepoint + np.random.randint(min_/dt, max_/dt)
-        if target_time < len( self.reward):
-             self.reward[target_time] = 0.5
-    return  self.reward
-
+def reward_function(self, spikes):
+    pass
 
 def setup_online_plot(self):
-    self.target_weights = []
-    fig, axs = plt.subplots(2,figsize=(20,20))
+    fig, axs = plt.subplots(3,figsize=(5,5))
+    ###local:
     plt.ion()
     plt.show()
     return fig, axs
 
 def update_online_plot(self, fig, axs):
-    self.target_weights.append(self.weights[0][1].cpu())
     if self.timepoint == self.total_timepoints-1 or self.timepoint%1000==0:
         ### clear axs
-        for i in range(2):
+        for i in range(3):
             axs[i].clear()
+        ### spike trains:
+        x,y = np.where(self.spike_train[:, self.timepoint-1000: self.timepoint].cpu())
+        axs[0].plot(y,x, '.',  color='black', markersize=2, alpha = 0.8 )
+        axs[0].set_xlim((0,1000))
+        axs[0].set_ylim((0,1396))
+        axs[0].plot((0,1000),(784,784), color='blue', markersize=0.5, alpha = 0.5)
+        axs[0].plot((0,1000),(1296,1296), color='blue', markersize=0.5, alpha = 0.5)
+        axs[0].set_xlabel(f'Trial {(self.timepoint//10000) + 1}')
         ### weights histogram
-        axs[0].hist(self.weights.cpu()[self.weights>0], bins = 100)
-        axs[0].set_xlabel("weights")
-        ###target synapse's weight and rewarsd
-        axs[1].plot(self.target_weights)
+        axs[1].hist(self.weights.cpu()[self.weights>0], bins = 100)
+        axs[1].set_xlabel("weights")
+        ###rewards
         rewards = np.where(self.reward.cpu() > 0.1)[0]
-        axs[1].plot(rewards, np.zeros_like(rewards), 'r*')
-        axs[1].set_xlabel("Target synapse weight (*: rewards)")
+        axs[2].plot(rewards, np.zeros_like(rewards), 'r*')
+        axs[2].set_xlabel("Target synapse weight (*: rewards)")
         ### local:
         fig.canvas.draw()
         fig.canvas.flush_events()
@@ -60,11 +58,11 @@ for neuron, pixel in enumerate(sample_image.ravel()):
     stimuli.add(Stimulus(lambda t: pixel, neuron))
 
 G = NeuronGroup(network= network, dt= dt,
-                total_time = 1,
+                total_time = 10,
                 stimuli = stimuli,
                 online_learning = True,
                 biological_plausible = True,
-                stochastic_spikes = True,
+                stochastic_spikes = False, #True,
                 reward_function = None,
                 plastic_inhibitory = True,
                 stochastic_function_b = 1/0.013,
