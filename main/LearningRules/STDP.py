@@ -20,27 +20,32 @@ class STDP:
             raise ValueError("'0' cannot be in hard bound")
         #TODO: tau_LTP, tau_LTD
 
-    def set_params(self, dt, weights,):
-        N = len(weights)
-        self.AdjacencyMatrix = weights.bool()
+    def set_params(self, dt, network,):
         self.dt = dt
-        self.excitatory_neurons = ((np.sign(weights.sum(axis = 1).cpu()) + 1)/2).view(N, 1).bool().to(DEVICE)
-        self.STDP_trace = torch.zeros((N,1), device = DEVICE)
-        self.STDP = torch.zeros((N, N), device=DEVICE)
-        self.eligibility_trace = torch.zeros((N,N), device = DEVICE)
+        self.weights = network.weights
+        self.N = network.total_neurons
+        self.adjacency_matrix = network.adjacency_matrix
+        self.excitatory_neurons = network.excitatory_neurons
+        self.inhibitory_neurons = network.inhibitory_neurons
+        self.STDP_trace = torch.zeros((self.N,1), device = DEVICE)
+        self.STDP = torch.zeros((self.N, self.N), device=DEVICE)
+        self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
 
     def _update_STDP(self, spikes,):
         # reset STDP
         self.STDP.fill_(0)
         ### post-pre spikes (= pre-post connections)
-        self.STDP[spikes,:] = self.LTD_rate * self.AdjacencyMatrix[spikes,:] * self.STDP_trace.T
+        self.STDP[spikes,:] = self.LTD_rate * self.adjacency_matrix[spikes,:] * self.STDP_trace.T
         ### pre-post spikes (= post-pre connections)
-        self.STDP[:,spikes] = self.LTP_rate * self.AdjacencyMatrix[:,spikes] * self.STDP_trace 
+        self.STDP[:,spikes] = self.LTP_rate * self.adjacency_matrix[:,spikes] * self.STDP_trace 
         #TODO: handle simultaneous pre-post spikes
 
     def __call__(self, weights, spikes, reward):
         self.STDP_trace *= 0.95 #tau = 20ms <TODO>
-        self.STDP_trace[spikes] = 0.1
+        if self.plastic_inhibitory:
+            self.STDP_trace[spikes * self.excitatory_neurons] = 0.1 #TODO: STDP_trace pulse magnitute + pulse/cumulative
+        else:
+            self.STDP_trace[spikes] = 0.1
         ### update STDP matrix
         self._update_STDP(spikes)
         ### Update eligibility trace
@@ -48,8 +53,7 @@ class STDP:
         ### Dopamine
         self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + reward
         ### Update weights
-        weights += (self.dopamine_base+self.dopamine) * self.eligibility_trace *\
-            (1 if self.plastic_inhibitory else self.excitatory_neurons)
+        weights += (self.dopamine_base+self.dopamine) * self.eligibility_trace
         ### Hard bound:
         if self.hard_bound:
             weights[(weights * self.excitatory_neurons) < 0] = self.hard_bound(0)

@@ -36,11 +36,12 @@ class NeuronGroup:
                 reward_function = None, learning_rule = None, callbacks = [],
                 **kwargs):
         self.dt = dt
-        self.weights = torch.from_numpy(network).to(DEVICE)
-        self.N = len(network)
-        self.excitatory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) + 1)/2).view(self.N, 1).bool().to(DEVICE)
-        self.inhibitory_neurons = ((np.sign(self.weights.sum(axis = 1).cpu()) - 1)/-2).view(self.N, 1).bool().to(DEVICE)
-        self.AdjacencyMatrix = torch.from_numpy(network.astype(bool)).to(DEVICE)
+        self.network = network
+        self.weights = network.weights
+        self.N = network.total_neurons
+        self.adjacency_matrix = network.adjacency_matrix
+        self.excitatory_neurons = network.excitatory_neurons
+        self.inhibitory_neurons = network.inhibitory_neurons
         self.total_time = total_time
         self.N_runs = 0
         self.reward_function = reward_function
@@ -70,7 +71,7 @@ class NeuronGroup:
         ### online learning
         self.learning_rule = learning_rule
         if self.learning_rule:
-            self.learning_rule.set_params(self.dt, self.weights)
+            self.learning_rule.set_params(self.dt, self.network)
             self.rewards = torch.zeros(self.total_timepoints, device = DEVICE)
         ### online plot
         self.setup_online_plot = self.kwargs.get('setup_online_plot',  False)

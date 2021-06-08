@@ -1,13 +1,17 @@
 import os
 import numpy as np
 from main.neuronTypes.LIF import NeuronGroup
-from main.adjacencyMatrix import random_connections
+from main.networks import Network, RandomConnections
 from main.learningRules.stdp import STDP
 from main.callbacks import TensorBoard
 
 dt = 0.001
-network = random_connections(1000, connection_chance = 0.1, excitatory_ratio = 0.8)
-initial_network = network.copy()
+class Model(Network):
+    def architecture(self):
+        self.layer1 = RandomConnections(5, 1)
+        self.layer2 = RandomConnections(3, 1)
+        self.randomConnect(self.layer1, self.layer2, 0.5)
+
 
 def exp1_reward_function(self,):
     min_, max_ = 1,3
@@ -15,10 +19,9 @@ def exp1_reward_function(self,):
     if target_time < len( self.reward):
         self.reward[target_time] = 0.5
 
-stdp = STDP()
-G = NeuronGroup(network= network, dt= dt,
+G = NeuronGroup(network= Model(), dt= dt,
                 total_time = 1,
-                learning_rule = stdp,
+                learning_rule = STDP(),
                 callbacks = [TensorBoard()] ,
                 biological_plausible = True,
                 reward_function = exp1_reward_function,
