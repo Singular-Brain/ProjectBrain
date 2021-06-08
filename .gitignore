@@ -5,3 +5,4 @@ debug.py
 *.pyc
 *.npy
 tmp_*
+runs/
