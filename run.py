@@ -1,9 +1,9 @@
 import os
 import numpy as np
-from NeuronTypes.LIF import NeuronGroup
-from AdjacencyMatrix import random_connections
+from main.neuronTypes.LIF import NeuronGroup
+from main.adjacencyMatrix import random_connections
 from matplotlib import pyplot as plt
-from LearningRules.STDP import STDP
+from main.learningRules.stdp import STDP
 
 dt = 0.001
 network = random_connections(1000, connection_chance = 0.1, excitatory_ratio = 0.8)
