@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 class CallbackList:
     def __init__(self, callbacks):
@@ -32,7 +32,7 @@ class CallbackList:
                 callback.on_timepoint_end(timepoint)    
 
 
-class Callback(ABC):
+class Callback():
     def set_NeuronGroup(self, NeuronGroup):
         self.model = NeuronGroup
 
