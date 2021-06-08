@@ -56,9 +56,7 @@ class RandomConnect(Connection):
         self.weights = weights_values * self.adjacency_matrix
 
 class NeuronGroup(ABC):
-    @property
-    def weight_values(self):
-        return self.weights[self.weights != 0]
+    ...
 
 class RandomConnections(NeuronGroup):
     def __init__(self, population_size, connection_chance, excitatory_ratio = 0.8,):
