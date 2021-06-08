@@ -178,6 +178,6 @@ class NeuronGroup:
         self.reward = torch.zeros(self.total_timepoints, device = DEVICE)
  
 
-    @property
-    def weight_values(self):
-        return self.weights[self.weights != 0]
+    def weight_values(self, slice = None):
+        target_weights = self.weights[slice]
+        return target_weights[target_weights != 0]
