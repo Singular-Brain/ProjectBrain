@@ -51,6 +51,8 @@ class NeuronGroup:
             self.callbacks = callbacks
         else:
             self.callbacks = CallbackList(callbacks)
+        for callback in callbacks:
+            callback.set_NeuronGroup(self)
         ### neurons variables
         if biological_plausible:
             self.kwargs.update(BIOLOGICAL_VARIABLES)        

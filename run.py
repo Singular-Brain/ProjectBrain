@@ -2,8 +2,8 @@ import os
 import numpy as np
 from main.neuronTypes.LIF import NeuronGroup
 from main.adjacencyMatrix import random_connections
-from matplotlib import pyplot as plt
 from main.learningRules.stdp import STDP
+from main.callbacks import TensorBoard
 
 dt = 0.001
 network = random_connections(1000, connection_chance = 0.1, excitatory_ratio = 0.8)
@@ -17,9 +17,9 @@ def exp1_reward_function(self,):
 
 stdp = STDP()
 G = NeuronGroup(network= network, dt= dt,
-                total_time = 5,
+                total_time = 1,
                 learning_rule = stdp,
-                stimuli = set(),
+                callbacks = [TensorBoard()] ,
                 biological_plausible = True,
                 reward_function = exp1_reward_function,
                 stochastic_spikes = True,
