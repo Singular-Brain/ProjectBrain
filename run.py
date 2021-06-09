@@ -23,7 +23,7 @@ G = NeuronGroup(network= Model(),
                 dt= dt,
                 total_time = 15,
                 learning_rule = STDP(),
-                callbacks = [TensorBoard()],
+                callbacks = [TensorBoard(update_secs = 2)],
                 biological_plausible = True,
                 reward_function = exp1_reward_function,
                 stochastic_spikes = True,
@@ -32,5 +32,5 @@ G = NeuronGroup(network= Model(),
                 save_history = True,
                 )
 
-for _ in range(1):
+for _ in range(3):
     G.run(progress_bar = True)
