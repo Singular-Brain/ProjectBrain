@@ -73,12 +73,6 @@ class NeuronGroup:
         if self.learning_rule:
             self.learning_rule.set_params(self.dt, self.network)
             self.rewards = torch.zeros(self.total_timepoints, device = DEVICE)
-        ### online plot
-        self.setup_online_plot = self.kwargs.get('setup_online_plot',  False)
-        self.update_online_plot = self.kwargs.get('update_online_plot',  False)
-        self.online_plot = self.setup_online_plot and self.update_online_plot
-        if (self.setup_online_plot==False) ^ (self.update_online_plot==False):
-            print("To use 'online plot' set both 'setup_online_plot' and 'update_online_plot' functions!")
         ### save history
         self.save_history = self.kwargs.get('save_history',  False)
         if self.save_history:
@@ -127,8 +121,6 @@ class NeuronGroup:
     def run(self, stimuli = None, progress_bar = False):
         self._reset()
         self._make_stimuli_adjacency(stimuli)
-        if self.online_plot:
-            fig, axs = self.setup_online_plot(self)
         self.callbacks.on_run_start(self.N_runs)
         for self.timepoint in tqdm(range(self.total_timepoints)) if progress_bar \
         else range(self.total_timepoints):
@@ -163,8 +155,6 @@ class NeuronGroup:
             self.current += (stim_current + new_currents) * (self.refractory >= self.refractory_timepoints) # implement current for open neurons 
             if self.save_history:
                 self.current_history[:,self.timepoint] = self.current
-            if self.online_plot:
-                self.update_online_plot(self, fig, axs)
             self.callbacks.on_timepoint_end(self.timepoint)
         self.callbacks.on_run_end(self.N_runs)
  
@@ -180,3 +170,7 @@ class NeuronGroup:
     def weight_values(self, slice = None):
         target_weights = self.weights[slice]
         return target_weights[target_weights != 0]
+
+    @property
+    def seconds(self):
+        return round(self.timepoint * self.dt, 1)
