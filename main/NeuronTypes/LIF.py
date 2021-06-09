@@ -64,9 +64,9 @@ class NeuronGroup:
         self.excitatory_chance = self.kwargs.get('excitatory_chance',  0.8)
         self.stochastic_spikes = self.kwargs.get('stochastic_spikes', False)
         ### neurons variables
-        self.refractory = torch.ones((self.N,1), device = DEVICE) * self.refractory_timepoints
-        self.current = torch.zeros((self.N,1), device = DEVICE)
-        self.potential = torch.ones((self.N,1), device = DEVICE) * self.u_rest
+        self.refractory = torch.ones((self.N), device = DEVICE) * self.refractory_timepoints
+        self.current = torch.zeros((self.N), device = DEVICE)
+        self.potential = torch.ones((self.N), device = DEVICE) * self.u_rest
         self.spike_train = torch.zeros((self.N, self.total_timepoints), dtype= torch.bool)
         ### online learning
         self.learning_rule = learning_rule
@@ -109,7 +109,7 @@ class NeuronGroup:
         call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
         stimuli_output = call_stimuli(self.stimuli)
         stimuli_current = (stimuli_output * self.StimuliAdjacency).sum(axis = 1)
-        return torch.from_numpy(stimuli_current.reshape(self.N,1)).to(DEVICE)
+        return torch.from_numpy(stimuli_current).to(DEVICE)
  
     def _stochastic_function(self, u,):
         return 1/self.kwargs.get("stochastic_function_tau", 1) *\
@@ -140,14 +140,13 @@ class NeuronGroup:
             if self.save_history:
                 self.potential_history[:,self.timepoint] = self.potential.ravel()
             ### Reset currents
-            self.current = torch.zeros(self.N,1).to(DEVICE) 
+            self.current = torch.zeros(self.N).to(DEVICE) 
             ### Spikes 
             if self.stochastic_spikes:
-                spikes_matrix = self._stochastic_function(self.potential) > torch.rand(self.N,1, device =DEVICE)
+                self.spikes = self._stochastic_function(self.potential) > torch.rand(self.N, device =DEVICE)
             else:
-                spikes_matrix = self.potential>self.u_thresh   # torch.Size([N, 1])
-            self.spikes = spikes_matrix.ravel()
-            self.potential[spikes_matrix] = self.u_rest
+                self.spikes = self.potential>self.u_thresh   # torch.Size([N,])
+            self.potential[self.spikes] = self.u_rest
             ### Online Learning
             if self.learning_rule:
                 ### Update reward
@@ -157,13 +156,13 @@ class NeuronGroup:
                 self.weights = self.learning_rule(self.weights, self.spikes, self.rewards[self.timepoint])
             ### Spike train
             self.spike_train[:,self.timepoint] = self.spikes
-            self.refractory *= torch.logical_not(spikes_matrix).to(DEVICE)
+            self.refractory *= torch.logical_not(self.spikes).to(DEVICE)
             ### Transfer currents + external sources
-            new_currents = ((spikes_matrix * self.weights).sum(axis = 0).view(self.N,1) * self.base_current).to(DEVICE)
+            new_currents = ((self.spikes * self.weights).sum(axis = 0) * self.base_current).to(DEVICE)
             stim_current = self._get_stimuli_current() if self.stimuli is not None else 0
             self.current += (stim_current + new_currents) * (self.refractory >= self.refractory_timepoints) # implement current for open neurons 
             if self.save_history:
-                self.current_history[:,self.timepoint] = self.current.ravel()
+                self.current_history[:,self.timepoint] = self.current
             if self.online_plot:
                 self.update_online_plot(self, fig, axs)
             self.callbacks.on_timepoint_end(self.timepoint)
@@ -171,9 +170,9 @@ class NeuronGroup:
  
     def _reset(self):
         self.N_runs +=1
-        self.refractory = torch.ones(self.N,1).to(DEVICE) * self.refractory_timepoints
-        self.current = torch.zeros(self.N,1).to(DEVICE)
-        self.potential = torch.ones(self.N,1).to(DEVICE) * self.u_rest
+        self.refractory = torch.ones(self.N).to(DEVICE) * self.refractory_timepoints
+        self.current = torch.zeros(self.N).to(DEVICE)
+        self.potential = torch.ones(self.N).to(DEVICE) * self.u_rest
         self.spike_train = torch.zeros((self.N, self.total_timepoints),dtype=torch.bool).to(DEVICE)
         self.reward = torch.zeros(self.total_timepoints, device = DEVICE)
  
