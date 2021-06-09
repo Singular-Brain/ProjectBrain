@@ -8,8 +8,8 @@ from main.callbacks import TensorBoard
 dt = 0.001
 class Model(Network):
     def architecture(self):
-        self.layer1 = RandomConnections(5, 1)
-        self.layer2 = RandomConnections(3, 1)
+        self.layer1 = RandomConnections(50, 1)
+        self.layer2 = RandomConnections(100, 1)
         self.randomConnect(self.layer1, self.layer2, 0.5)
 
 
@@ -19,17 +19,18 @@ def exp1_reward_function(self,):
     if target_time < len( self.reward):
         self.reward[target_time] = 0.5
 
-G = NeuronGroup(network= Model(), dt= dt,
-                total_time = 1,
+G = NeuronGroup(network= Model(), 
+                dt= dt,
+                total_time = 15,
                 learning_rule = STDP(),
-                callbacks = [TensorBoard()] ,
+                callbacks = [TensorBoard()],
                 biological_plausible = True,
                 reward_function = exp1_reward_function,
                 stochastic_spikes = True,
                 stochastic_function_b = 1/0.013,
                 stochastic_function_tau = (np.exp(-1))/(dt*1),
-                save_history = False,
+                save_history = True,
                 )
 
-
-G.run(progress_bar = True)
+for _ in range(1):
+    G.run(progress_bar = True)

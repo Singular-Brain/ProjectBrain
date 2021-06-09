@@ -54,10 +54,11 @@ class Callback():
     
 
 class TensorBoard(Callback):
-    def __init__(self, log_dir = None):
+    def __init__(self, log_dir = None,):
         super().__init__()
         from torch.utils.tensorboard import SummaryWriter
         self.writer = SummaryWriter(log_dir =log_dir)
+
 
     def on_run_start(self, N_runs,):
         if N_runs == 1:
@@ -70,6 +71,7 @@ class TensorBoard(Callback):
                                         self.model.weight_values([connection.from_.idx, connection.to.idx]),
                                         0)
 
+
     def on_run_end(self, N_runs,):
         for group in self.model.network._groups:
             self.writer.add_histogram('Layers/' + group.name,
@@ -81,3 +83,20 @@ class TensorBoard(Callback):
                                       N_runs)
     
 
+    def on_timepoint_end(self, timepoint): 
+        if timepoint>0 and timepoint%int(1/self.model.dt) == 0 or timepoint==self.model.total_timepoints-1: # update every 1s #TODO
+            for group in self.model.network._groups:
+                self.writer.add_scalar('Spikes/' + 'Run ' + str(self.model.N_runs)+ ' - ' + group.name,
+                        self.model.spike_train[group.idx,timepoint-1000:timepoint].sum(),
+                        self.model.seconds)
+
+            if self.model.save_history:
+                for connection in self.model.network._connections:
+                    connections = self.model.adjacency_matrix[connection.from_.idx, connection.to.idx].sum(axis = 1)
+                    potential = (self.model.potential_history[connection.from_.idx,timepoint-1000:timepoint] - self.model.u_rest).sum(axis = 1)
+                    EPSP = sum(connections * potential * self.model.excitatory_neurons[connection.from_.idx])
+                    IPSP = sum(connections * potential * self.model.inhibitory_neurons[connection.from_.idx])
+                    self.writer.add_scalar('EPSP/'+ connection.from_.name + ' to ' + connection.to.name,
+                                            EPSP, self.model.seconds) 
+                    self.writer.add_scalar('IPSP/'+ connection.from_.name + ' to ' + connection.to.name,
+                                            IPSP, self.model.seconds) 
