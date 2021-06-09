@@ -130,9 +130,7 @@ class NeuronGroup:
             self.potential += 0.5*self._update_potential() # To Improve approximation 
             self.potential += 0.5*self._update_potential() # and numerical stability
             if self.save_history:
-                self.potential_history[:,self.timepoint] = self.potential.ravel()
-            ### Reset currents
-            self.current = torch.zeros(self.N).to(DEVICE) 
+                self.potential_history[:,self.timepoint] = self.potential
             ### Spikes 
             if self.stochastic_spikes:
                 self.spikes = self._stochastic_function(self.potential) > torch.rand(self.N, device =DEVICE)
@@ -150,9 +148,9 @@ class NeuronGroup:
             self.spike_train[:,self.timepoint] = self.spikes
             self.refractory *= torch.logical_not(self.spikes).to(DEVICE)
             ### Transfer currents + external sources
-            new_currents = ((self.spikes * self.weights).sum(axis = 0) * self.base_current).to(DEVICE)
+            new_currents = ((self.spikes.reshape(self.N,1) * self.weights).sum(axis = 0) * self.base_current).to(DEVICE)
             stim_current = self._get_stimuli_current() if self.stimuli is not None else 0
-            self.current += (stim_current + new_currents) * (self.refractory >= self.refractory_timepoints) # implement current for open neurons 
+            self.current = (stim_current + new_currents) * (self.refractory >= self.refractory_timepoints) # implement current for open neurons 
             if self.save_history:
                 self.current_history[:,self.timepoint] = self.current
             self.callbacks.on_timepoint_end(self.timepoint)
