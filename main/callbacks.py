@@ -106,10 +106,13 @@ class TensorBoard(Callback):
                                         self.model.weight_values([connection.from_.idx, connection.to.idx]),
                                         N_runs)
             ### Groups spikes
+            combined = {}
             for group in self.model.network._groups:
-                self.writer.add_scalar('Spikes/' + group.name,
-                        self.model.spike_train[group.idx,:].sum(),
-                        N_runs)
+                spikes = self.model.spike_train[group.idx,:].sum()
+                self.writer.add_scalar('Spikes/' + group.name,spikes,N_runs)
+                combined[group.name] = spikes
+            ### Combined
+            self.writer.add_scalars('Spikes/Combined',spikes,N_runs)
             ### EPSP/IPSP
             if self.model.save_history:
                 for connection in self.model.network._connections:
@@ -139,10 +142,15 @@ class TensorBoard(Callback):
                                         self.model.weight_values([connection.from_.idx, connection.to.idx]),
                                         self.model.seconds)
             ### Groups spikes
+            combined = {}
             for group in self.model.network._groups:
+                spikes = self.model.spike_train[group.idx,timepoint-step:timepoint].sum()
                 self.writer.add_scalar('Spikes/' + group.name + f'(Run:{self.model.N_runs})',
-                        self.model.spike_train[group.idx,timepoint-step:timepoint].sum(),
+                        spikes,
                         self.model.seconds)
+                combined[group.name] = spikes
+            ### Combined
+            self.writer.add_scalars('Spikes/Combined',combined,self.model.seconds)                
             ### EPSP/IPSP
             if self.model.save_history:
                 for connection in self.model.network._connections:
