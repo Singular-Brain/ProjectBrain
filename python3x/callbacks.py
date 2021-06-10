@@ -123,6 +123,7 @@ class TensorBoard(Callback):
                                             EPSP, N_runs) 
                     self.writer.add_scalar('IPSP/'+ connection.from_.name + ' to ' + connection.to.name,
                                             IPSP, N_runs) 
+        self.writer.flush()
 
     def on_timepoint_end(self, timepoint): 
         if self.update_secs and (
