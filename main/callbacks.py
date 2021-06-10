@@ -72,9 +72,9 @@ class TensorBoard(Callback):
         if self.update_secs:
             ### Groups weights histogram
             for group in self.model.network._groups:
-                self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.model.N_runs})', 
-                                        self.model.weight_values([group.idx, group.idx]),
-                                        0)
+                if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
+                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.model.N_runs})', 
+                                            weight_values, 0)
             ### Connections weights histogram
             for connection in self.model.network._connections:
                 self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' +
@@ -85,9 +85,8 @@ class TensorBoard(Callback):
             if N_runs == 1: 
                 ### Groups weights histogram
                 for group in self.model.network._groups:
-                    self.writer.add_histogram('Groups/' + group.name + ' weights',
-                                            self.model.weight_values([group.idx, group.idx]),
-                                            0)
+                    if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
+                        self.writer.add_histogram('Groups/' + group.name + ' weights', weight_values, 0)
                 ### Connections weights histogram
                 for connection in self.model.network._connections:
                     self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' + connection.to.name,
@@ -99,9 +98,8 @@ class TensorBoard(Callback):
         if not self.update_secs:
             ### Groups weights histogram
             for group in self.model.network._groups:
-                self.writer.add_histogram('Groups/' + group.name + ' weights', 
-                                        self.model.weight_values([group.idx, group.idx]),
-                                        N_runs)
+                if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
+                    self.writer.add_histogram('Groups/' + group.name + ' weights', weight_values, N_runs)
             ### Connections weights histogram
             for connection in self.model.network._connections:
                 self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' + connection.to.name,
@@ -131,9 +129,9 @@ class TensorBoard(Callback):
             ):
             ### Groups weights histogram
             for group in self.model.network._groups:
-                self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.model.N_runs})', 
-                                        self.model.weight_values([group.idx, group.idx]),
-                                        self.model.seconds)
+                if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
+                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.model.N_runs})', 
+                                            weight_values, self.model.seconds)
             ### Connections weights histogram
             for connection in self.model.network._connections:
                 self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' +
