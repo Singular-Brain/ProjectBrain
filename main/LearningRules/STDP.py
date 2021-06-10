@@ -51,7 +51,7 @@ class STDP:
         self.excitatory_neurons = network.excitatory_neurons
         self.inhibitory_neurons = network.inhibitory_neurons
         self.STDP_trace = torch.zeros((self.N,1), device = DEVICE)
-        self.decay_rate = self.excitatory_neurons * (torch.exp(-self.dt/self.tau_LTP)) + self.inhibitory_neurons *  (torch.exp(-self.dt/self.tau_LTD))
+        self.decay_rate = (self.excitatory_neurons * (np.exp(-self.dt/self.tau_LTP)) + self.inhibitory_neurons *  (np.exp(-self.dt/self.tau_LTD))).reshape((self.N, 1))
         self.STDP = torch.zeros((self.N, self.N), device=DEVICE)
         self.eligibility_trace = torch.zeros((self.N,self.N), device = DEVICE)
 
