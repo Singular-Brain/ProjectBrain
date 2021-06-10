@@ -171,4 +171,4 @@ class NeuronGroup:
 
     @property
     def seconds(self):
-        return round(self.timepoint * self.dt, 1)
+        return round(self.timepoint * self.dt, 2)
