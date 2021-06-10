@@ -59,7 +59,7 @@ class NeuronGroup(ABC):
     ...
 
 class RandomConnections(NeuronGroup):
-    def __init__(self, population_size, connection_chance, excitatory_ratio = 0.8,):
+    def __init__(self, population_size, connection_chance, excitatory_ratio = 0.8, scale_factor = 1):
         self.name = None
         self.N = population_size
         self.adjacency_matrix = (torch.rand((population_size, population_size), device = DEVICE) + connection_chance).int().bool()
@@ -67,7 +67,7 @@ class RandomConnections(NeuronGroup):
                                                 device= DEVICE, dtype= torch.bool)
         self.inhibitory_neurons = torch.tensor([0]* int(excitatory_ratio * population_size) + [1]* (ceil((1-excitatory_ratio) * population_size)),
                                                 device= DEVICE, dtype= torch.bool)
-        weights_values = np.random.rand(population_size,population_size)
+        weights_values = np.random.rand(population_size,population_size) * scale_factor
         np.fill_diagonal(weights_values, 0)
         self.weights = self.adjacency_matrix * torch.from_numpy(weights_values).to(DEVICE)
         self.weights[self.inhibitory_neurons] *= -1
