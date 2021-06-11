@@ -163,7 +163,9 @@ class NeuronGroup:
         self.potential = torch.ones(self.N).to(DEVICE) * self.u_rest
         self.spike_train = torch.zeros((self.N, self.total_timepoints),dtype=torch.bool).to(DEVICE)
         self.reward = torch.zeros(self.total_timepoints, device = DEVICE)
- 
+        if self.save_history:
+            self.current_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
+            self.potential_history = torch.zeros((self.N, self.total_timepoints), dtype= torch.float32).to(DEVICE)
 
     def weight_values(self, slice = None):
         target_weights = self.weights[slice]
