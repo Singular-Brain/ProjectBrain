@@ -1,36 +1,43 @@
 import os
 import numpy as np
-from main.neuronTypes.LIF import NeuronGroup
-from main.networks import Network, RandomConnections
+from main.networks import Network
+from main.stimulus import frequency_based_current
 from main.learningRules.stdp import STDP
 from main.callbacks import TensorBoard
+from main.neuronTypes import LIF
 
 dt = 0.001
 class Model(Network):
     def architecture(self):
-        self.layer1 = RandomConnections(50, 1)
-        self.layer2 = RandomConnections(100, 1)
-        self.randomConnect(self.layer1, self.layer2, 0.5)
+        scale_weight = 0.5
+        layer1 = self.randomConnections(50, LIF(),  1, excitatory_ratio = 1)
+        layer2 = self.randomConnections(30, LIF(), .1, scale_factor = scale_weight)
+        layer3 = self.randomConnections(30, LIF(), .1, scale_factor = scale_weight)
+        self.connectStimulus(layer1)
+        self.connectStimulus(layer2)
 
 
-def exp1_reward_function(self,):
-    min_, max_ = 1,3
-    target_time =  self.timepoint + np.random.randint(min_/dt, max_/dt)
-    if target_time < len( self.reward):
-        self.reward[target_time] = 0.5
+# tensorboard = TensorBoard(update_secs = 1)
 
-G = NeuronGroup(network= Model(), 
-                dt= dt,
-                total_time = 15,
-                learning_rule = STDP(),
-                callbacks = [TensorBoard(update_secs = 2)],
-                biological_plausible = True,
-                reward_function = exp1_reward_function,
-                stochastic_spikes = True,
-                stochastic_function_b = 1/0.013,
-                stochastic_function_tau = (np.exp(-1))/(dt*1),
-                save_history = True,
+model = Model(dt= dt,
+              total_time = 4,
+              learning_rule = STDP(dopamine_base = 0.1),
+              callbacks = [],
+              save_history = True,
                 )
 
-for _ in range(3):
-    G.run(progress_bar = True)
+stimuli = [
+    {
+    frequency_based_current(dt, frequency =  5, amplitude = 1, neurons = [0]),
+    frequency_based_current(dt, frequency = 10, amplitude = 1, neurons = [1]),
+    frequency_based_current(dt, frequency = 15, amplitude = 1, neurons = [2]),
+    frequency_based_current(dt, frequency = 20, amplitude = 1, neurons = [3]),
+    frequency_based_current(dt, frequency = 15, amplitude = 1, neurons = [4])
+    },
+    {
+    frequency_based_current(dt, frequency =  5, amplitude = 1, neurons = [0]),
+    }
+]
+
+
+model.run(stimuli, progress_bar = True)

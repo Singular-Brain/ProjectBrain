@@ -31,6 +31,15 @@ class CallbackList:
             for callback in self.callbacks:
                 callback.on_timepoint_end(timepoint)    
 
+    def on_subNetwork_start(self, subNetwork, timepoint):
+        if self.callbacks:
+            for callback in self.callbacks:
+                callback.on_subNetwork_start(subNetwork, timepoint) 
+
+    def on_subNetwork_end(self, subNetwork, timepoint):
+        if self.callbacks:
+            for callback in self.callbacks:
+                callback.on_subNetwork_end(subNetwork, timepoint) 
 
 class Callback():
     def set_NeuronGroup(self, NeuronGroup):
@@ -58,11 +67,12 @@ class TensorBoard(Callback):
         """Add simulation data to the TensorBoard
 
         Args:
-            update_secs ([None or float], optional): If set to None, data will be updated at the end of each run. If set to a float(N), data will be updated every N seconds (simulation time). Defaults to None.
+            update_secs ([None or int], optional): If set to None, data will be updated at the end of each run. If set to a float(N), data will be updated every N seconds (simulation time). Defaults to None.
             log_dir ([str or None], optional): Save directory location. Default is runs/**CURRENT_DATETIME_HOSTNAME**, which changes after each run. Use hierarchical folder structure to compare between runs easily. e.g. pass in 'runs/exp1', 'runs/exp2', etc. for each new experiment to compare across them.
         """
         super().__init__()
         from torch.utils.tensorboard import SummaryWriter
+        assert type(update_secs) == int, "" #TODO
         self.writer = SummaryWriter(log_dir =log_dir,)
         self.update_secs = update_secs
 
