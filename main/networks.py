@@ -24,7 +24,7 @@ class Network:
         self.connections = []
         self.groups_connected_to_stimulus = []
         self.architecture()
-        self.subNetworks = self.groups + self.connections
+        self.subNetworks = sorted(self.groups + self.connections, key=lambda x: x.order)
         ###
         self.dt = dt
         self.total_time = total_time
@@ -74,7 +74,7 @@ class Network:
     def _reset(self):
         self.N_runs +=1
         for subNetwork in self.subNetworks:
-            subNetwork._reset(self.total_timepoints, self.save_history)
+            subNetwork._reset(self.dt, self.total_timepoints, self.save_history)
 
 
     def run(self, stimuli = None, progress_bar = False):
@@ -87,7 +87,7 @@ class Network:
             for subNetwork in self.subNetworks:
                 subNetwork.stim_current = self._get_stimuli_current(subNetwork)
                 self.callbacks.on_subNetwork_start(subNetwork, self.timepoint)
-                subNetwork._run_one_timepoint(self.dt, self.timepoint, self.save_history)
+                subNetwork._run_one_timepoint(self.timepoint)
                 self.callbacks.on_subNetwork_end(subNetwork, self.timepoint)
             self.callbacks.on_timepoint_end(self.timepoint)
             ### handle external rewards with callbacks
@@ -101,8 +101,8 @@ class Network:
 
 
 
-    def randomConnect(self, from_group, to_group, connection_chance):
-        self.connections.append(RandomConnect(from_group, to_group, connection_chance))
+    def randomConnect(self, source, destination, connection_chance):
+        self.connections.append(RandomConnect(source, destination, connection_chance))
 
     def randomConnections(self, population_size, neuronType, connection_chance,
                           name = None, excitatory_ratio = 0.8, scale_factor = 1,
@@ -117,6 +117,8 @@ class Network:
         self.groups_connected_to_stimulus.append(group)
 
 class NeuronGroup:
+    order = 0
+
     def __init__(self, neuronType, stochastic_spikes = True, base_current = 6E-11,
                  stochastic_function_tau = 1, stochastic_function_b = 1):
         ### Neuron Type
@@ -130,34 +132,37 @@ class NeuronGroup:
         self.stochastic_function_b = stochastic_function_b
     
 
-    def _reset(self, total_timepoints, save_history):
+    def _reset(self, dt, total_timepoints, save_history):
+        self.dt = dt
         self.refractory = torch.ones(self.N, device = DEVICE) * 1000 #initialize at a high value
         self.current = torch.zeros(self.N, device = DEVICE)
         self.potential = torch.ones(self.N, device = DEVICE) * self.neuronType.u_rest
         self.spikes = torch.zeros((self.N,1),dtype=torch.bool, device = DEVICE)
         self.spike_train = torch.zeros((self.N, total_timepoints),dtype=torch.bool, device = DEVICE)
+        self.save_history = save_history
         if save_history:
             self.current_history = torch.zeros((self.N, total_timepoints), dtype= torch.float32, device = DEVICE)
             self.potential_history = torch.zeros((self.N, total_timepoints), dtype= torch.float32, device = DEVICE)
 
 
-
-    def update_potential(self, dt, repeat = 2):
+    def _update_potential(self, repeat = 2):
         """Update the potential for neurons in the sub-network
 
         Args:
-            dt (float): global dt
             repeat (int, optional): Repeat the calculation with N steps to Improve approximation and numerical stability. Defaults to 2.
         """
         for _ in range(repeat):
-            self.potential += (1/repeat) * self.neuronType(dt, self.potential, self.current)
+            self.potential += (1/repeat) * self.neuronType(self.dt, self.potential, self.current)
 
-    def update_current(self, dt,):
+
+    def _update_current(self,):
         new_currents = ((self.spikes.reshape(self.N,1) * self.weights).sum(axis = 0) * self.base_current).to(DEVICE)
-        self.current = (self.stim_current + new_currents) * (self.refractory >= (self.neuronType.tau_refractory/dt)) # implement current for open neurons 
+        self.current = (self.stim_current + new_currents) * (self.refractory >= (self.neuronType.tau_refractory/self.dt)) # implement current for open neurons 
+
 
     def _stochastic_function(self,):
         return 1/self.stochastic_function_tau*torch.exp(self.stochastic_function_b * (self.potential - self.neuronType.u_thresh))
+
 
     def generate_spikes(self):
         if self.stochastic_spikes:
@@ -170,20 +175,20 @@ class NeuronGroup:
         self.refractory *= torch.logical_not(self.spikes).to(DEVICE)
 
 
-    def _run_one_timepoint(self, dt, timepoint, save_history):
+    def _run_one_timepoint(self, timepoint,):
         self.refractory +=1
         ### update potentials
-        self.update_potential(dt)  
-        if save_history:
+        self._update_potential()  
+        if self.save_history:
             self.potential_history[:,timepoint] = self.potential
         ### Spikes 
         self.generate_spikes()
         ### Spike train
         self.spike_train[:,timepoint] = self.spikes
         ### Transfer currents + external sources
-        self.update_current(dt)
+        self._update_current()
         ### save current
-        if save_history:
+        if self.save_history:
             self.current_history[:,timepoint] = self.current
         
 
@@ -210,28 +215,39 @@ class RandomConnections(NeuronGroup):
 
 
 class Connection(ABC):
-    def __init__(self, from_group, to_group):
-        self.from_group = from_group
-        self.to_group = to_group
+    order = 1
+
+    def __init__(self, source, destination):
+        self.source = source
+        self.destination = destination
+        self.excitatory_neurons = source.excitatory_neurons
+        self.inhibitory_neurons = source.inhibitory_neurons
+
+    def _update_current(self,):
+        new_currents = ((self.source.spikes.reshape(self.source.N,1) * self.weights).sum(axis = 0) * self.source.base_current).to(DEVICE)
+        self.current = new_currents * (self.destination.refractory >= (self.destination.neuronType.tau_refractory/self.dt)) # implement current for open neurons 
+
+    def _run_one_timepoint(self, timepoint,):
+        ### update the external current from 'source'
+        self._update_current()
+        ### transfer the new current to 'destination'
+        self.destination.current += self.current
+        ### save current
+        if self.save_history:
+            self.destination.current_history[:,timepoint] = self.destination.current
 
 
-    def update_potential(self, dt, repeat = 2):
-        """Update the potential for neurons in the sub-network
-
-        Args:
-            dt (float): global dt
-            repeat (int, optional): Repeat the calculation with N steps to Improve approximation and numerical stability. Defaults to 2.
-        """
-        for _ in range(repeat):
-            self.potential += (1/repeat) * self.neuronType(dt, self.potential, self.current)
+    def _reset(self, dt, total_timepoints, save_history):
+        self.dt = dt
+        self.save_history = save_history
 
 class RandomConnect(Connection):
-    def __init__(self, from_group, to_group, connection_chance):
-        super.__init__(from_group, to_group)
+    def __init__(self, source, destination, connection_chance):
+        super().__init__(source, destination)
         self.connection_chance = connection_chance
-        self.adjacency_matrix = (torch.rand((self.from_group.N, self.to_group.N), device = DEVICE) + connection_chance).int().bool()
-        weights_values = torch.rand((self.from_group.N, self.to_group.N), device = DEVICE)
-        weights_values[self.from_group.inhibitory_neurons] *= -1
+        self.adjacency_matrix = (torch.rand((self.source.N, self.destination.N), device = DEVICE) + connection_chance).int().bool()
+        weights_values = torch.rand((self.source.N, self.destination.N), device = DEVICE)
+        weights_values[self.source.inhibitory_neurons] *= -1
         self.weights = weights_values * self.adjacency_matrix
 
 

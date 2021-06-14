@@ -1,10 +1,27 @@
+from abc import ABC
 import torch
 import numpy as np
+from ..networks import NeuronGroup, Connection
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+class LearningRule(ABC):
+    def __init__(self):
+        ...
+
+    def set_params(self, dt, group):
+        ...
+
+    def update_neuromodulators(self):
+        ...
+
+    def zero_released_neuromodulators(self):
+        ...
+
+    def __call__(self,):
+        ...
 
 
-class STDP:
+class STDP(LearningRule):
     def __init__(self,
                 LTP_rate = 0.188, 
                 LTD_rate = -0.094, 
@@ -56,19 +73,26 @@ class STDP:
 
     def set_params(self, dt, group):
         self.dt = dt
-        group.STDP_trace = torch.zeros((group.N,1), device = DEVICE)
-        group.decay_rate = (group.excitatory_neurons * (np.exp(-self.dt/self.tau_LTP)) + group.inhibitory_neurons *  (np.exp(-self.dt/self.tau_LTD))).reshape((group.N, 1))
-        group.STDP = torch.zeros((group.N, group.N), device=DEVICE)
-        group.eligibility_trace = torch.zeros((group.N,group.N), device = DEVICE)
+        group.STDP = torch.zeros_like(group.weights, dtype = torch.float32, device=DEVICE)
+        group.eligibility_trace = torch.zeros_like(group.weights, dtype = torch.float32, device = DEVICE)
+        if isinstance(group, NeuronGroup):
+            group.STDP_trace = torch.zeros((group.N,1), device = DEVICE)
+            group.decay_rate = (group.excitatory_neurons * (np.exp(-self.dt/self.tau_LTP)) + group.inhibitory_neurons *  (np.exp(-self.dt/self.tau_LTD))).reshape((group.N, 1))
 
     def _update_STDP(self, group):
         # reset STDP
         group.STDP.fill_(0)
-        ### post-pre spikes (= pre-post connections)
-        group.STDP[group.spikes,:] = self.LTD_rate * group.adjacency_matrix[group.spikes,:] * group.STDP_trace.T
-        ### pre-post spikes (= post-pre connections)
-        group.STDP[:,group.spikes] = self.LTP_rate * group.adjacency_matrix[:,group.spikes] * group.STDP_trace 
-        #TODO: handle simultaneous pre-post spikes
+        if isinstance(group, NeuronGroup):
+            ### post-pre spikes (= pre-post connections)
+            group.STDP[group.spikes,:] = self.LTD_rate * group.adjacency_matrix[group.spikes,:] * group.STDP_trace.T
+            ### pre-post spikes (= post-pre connections)
+            group.STDP[:,group.spikes] = self.LTP_rate * group.adjacency_matrix[:,group.spikes] * group.STDP_trace 
+            #TODO: handle simultaneous pre-post spikes
+        elif isinstance(group, Connection):
+            ### post-pre spikes (= pre-post connections)
+            group.STDP[group.source.spikes,:] = self.LTD_rate * group.adjacency_matrix[group.source.spikes,:] * group.destination.STDP_trace.T
+            ### pre-post spikes (= post-pre connections)
+            group.STDP[:,group.destination.spikes]   = self.LTP_rate * group.adjacency_matrix[:,group.destination.spikes]   * group.source.STDP_trace 
 
     def update_neuromodulators(self):
         self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + self.released_dopamine
@@ -82,11 +106,12 @@ class STDP:
 
 
     def __call__(self, group,):
-        group.STDP_trace *= group.decay_rate 
-        if self.plastic_inhibitory:
-            group.STDP_trace[group.spikes] = 0.1 #TODO: STDP_trace pulse magnitute + pulse/cumulative
-        else:
-            group.STDP_trace[group.spikes * group.excitatory_neurons] = 0.1 
+        if isinstance(group, NeuronGroup):
+            group.STDP_trace *= group.decay_rate 
+            if self.plastic_inhibitory:
+                group.STDP_trace[group.spikes] = 0.1 #TODO: STDP_trace pulse magnitute + pulse/cumulative
+            else:
+                group.STDP_trace[group.spikes * group.excitatory_neurons] = 0.1 
         ### update STDP matrix
         self._update_STDP(group)
         ### Update eligibility trace
@@ -94,15 +119,15 @@ class STDP:
         ### Update weights
         group.weights += self.M * group.eligibility_trace
         ### CHeck if any inhibitory/excitatory neuron's sign has been changed
-        group.weights[(group.weights * group.excitatory_neurons) < 0] =  self.min_weight_value
-        group.weights[(group.weights * group.inhibitory_neurons) > 0] = -self.min_weight_value
+        group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < 0] =  self.min_weight_value
+        group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) > 0] = -self.min_weight_value
         ### Hard bound:
         if self.excitetory_hardbound:
-            group.weights[(group.weights * group.excitatory_neurons) < self.excitetory_hardbound(0)] = self.excitetory_hardbound(0)
-            group.weights[(group.weights * group.excitatory_neurons) > self.excitetory_hardbound(1)] = self.excitetory_hardbound(1)
+            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < self.excitetory_hardbound(0)] = self.excitetory_hardbound(0)
+            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) > self.excitetory_hardbound(1)] = self.excitetory_hardbound(1)
         if self.inhibitory_hardbound:    
-            group.weights[(group.weights * group.inhibitory_neurons) < self.inhibitory_hardbound(0)] = self.inhibitory_hardbound(0)
-            group.weights[(group.weights * group.inhibitory_neurons) < self.inhibitory_hardbound(1)] = self.inhibitory_hardbound(1)
+            group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound(0)] = self.inhibitory_hardbound(0)
+            group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound(1)] = self.inhibitory_hardbound(1)
 
 
     def release_dopamine(self, quantity):

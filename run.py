@@ -13,6 +13,8 @@ class Model(Network):
         layer1 = self.randomConnections(50, LIF(),  1, excitatory_ratio = 1)
         layer2 = self.randomConnections(30, LIF(), .1, scale_factor = scale_weight)
         layer3 = self.randomConnections(30, LIF(), .1, scale_factor = scale_weight)
+        self.randomConnect(layer1, layer2, .2)
+        self.randomConnect(layer2, layer3, .05)
         self.connectStimulus(layer1)
         self.connectStimulus(layer2)
 
