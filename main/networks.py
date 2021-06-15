@@ -35,7 +35,7 @@ class Network:
         else:
             self.callbacks = CallbackList(callbacks)
         for callback in callbacks:
-            callback.set_NeuronGroup(self)
+            callback.setNetwork(self)
         ### online learning
         self.learning_rule = learning_rule
         if self.learning_rule:

@@ -42,8 +42,8 @@ class CallbackList:
                 callback.on_subNetwork_end(subNetwork, timepoint) 
 
 class Callback():
-    def set_NeuronGroup(self, NeuronGroup):
-        self.model = NeuronGroup
+    def setNetwork(self, network):
+        self.network = network
 
     @abstractmethod
     def on_run_start(self, N_runs,):
@@ -81,55 +81,55 @@ class TensorBoard(Callback):
     def on_run_start(self, N_runs,):# Initial state
         if self.update_secs:
             ### Groups weights histogram
-            for group in self.model.network._groups:
-                if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
-                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.model.N_runs})', 
+            for group in self.network.network._groups:
+                if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
+                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.network.N_runs})', 
                                             weight_values, 0)
             ### Connections weights histogram
-            for connection in self.model.network._connections:
+            for connection in self.network.network._connections:
                 self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' +
-                                        connection.to.name + f' weights(Run:{self.model.N_runs})',
-                                        self.model.weight_values([connection.from_.idx, connection.to.idx]),
+                                        connection.to.name + f' weights(Run:{self.network.N_runs})',
+                                        self.network.weight_values([connection.from_.idx, connection.to.idx]),
                                         0)
         else:
             if N_runs == 1: 
                 ### Groups weights histogram
-                for group in self.model.network._groups:
-                    if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
+                for group in self.network.network._groups:
+                    if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
                         self.writer.add_histogram('Groups/' + group.name + ' weights', weight_values, 0)
                 ### Connections weights histogram
-                for connection in self.model.network._connections:
+                for connection in self.network.network._connections:
                     self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' + connection.to.name,
-                                            self.model.weight_values([connection.from_.idx, connection.to.idx]),
+                                            self.network.weight_values([connection.from_.idx, connection.to.idx]),
                                             0)
 
 
     def on_run_end(self, N_runs,):
         if not self.update_secs:
             ### Groups weights histogram
-            for group in self.model.network._groups:
-                if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
+            for group in self.network.network._groups:
+                if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
                     self.writer.add_histogram('Groups/' + group.name + ' weights', weight_values, N_runs)
             ### Connections weights histogram
-            for connection in self.model.network._connections:
+            for connection in self.network.network._connections:
                 self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' + connection.to.name,
-                                        self.model.weight_values([connection.from_.idx, connection.to.idx]),
+                                        self.network.weight_values([connection.from_.idx, connection.to.idx]),
                                         N_runs)
             ### Groups spikes
             combined = {}
-            for group in self.model.network._groups:
-                spikes = self.model.spike_train[group.idx,:].sum()
+            for group in self.network.network._groups:
+                spikes = self.network.spike_train[group.idx,:].sum()
                 self.writer.add_scalar('Spikes/' + group.name,spikes,N_runs)
                 combined[group.name] = spikes
             ### Combined
             self.writer.add_scalars('Spikes/Combined',spikes,N_runs)
             ### EPSP/IPSP
-            if self.model.save_history:
-                for connection in self.model.network._connections:
-                    connections = self.model.adjacency_matrix[connection.from_.idx, connection.to.idx].sum(axis = 1)
-                    potential = (self.model.potential_history[connection.from_.idx,:] - self.model.u_rest).sum(axis = 1)
-                    EPSP = sum(connections * potential * self.model.excitatory_neurons[connection.from_.idx])
-                    IPSP = sum(connections * potential * self.model.inhibitory_neurons[connection.from_.idx])
+            if self.network.save_history:
+                for connection in self.network.network._connections:
+                    connections = self.network.adjacency_matrix[connection.from_.idx, connection.to.idx].sum(axis = 1)
+                    potential = (self.network.potential_history[connection.from_.idx,:] - self.network.u_rest).sum(axis = 1)
+                    EPSP = sum(connections * potential * self.network.excitatory_neurons[connection.from_.idx])
+                    IPSP = sum(connections * potential * self.network.inhibitory_neurons[connection.from_.idx])
                     self.writer.add_scalar('EPSP/'+ connection.from_.name + ' to ' + connection.to.name,
                                             EPSP, N_runs) 
                     self.writer.add_scalar('IPSP/'+ connection.from_.name + ' to ' + connection.to.name,
@@ -137,38 +137,38 @@ class TensorBoard(Callback):
 
     def on_timepoint_end(self, timepoint): 
         if self.update_secs and (
-            (timepoint>0 and timepoint%(step:=int(self.update_secs/self.model.dt)) ==0)
-            or timepoint==self.model.total_timepoints-1
+            (timepoint>0 and timepoint%(step:=int(self.update_secs/self.network.dt)) ==0)
+            or timepoint==self.network.total_timepoints-1
             ):
             ### Groups weights histogram
-            for group in self.model.network._groups:
-                if (weight_values:=self.model.weight_values([group.idx, group.idx])).any():
-                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.model.N_runs})', 
-                                            weight_values, self.model.seconds)
+            for group in self.network.network._groups:
+                if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
+                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.network.N_runs})', 
+                                            weight_values, self.network.seconds)
             ### Connections weights histogram
-            for connection in self.model.network._connections:
+            for connection in self.network.network._connections:
                 self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' +
-                                        connection.to.name + f' weights(Run:{self.model.N_runs})',
-                                        self.model.weight_values([connection.from_.idx, connection.to.idx]),
-                                        self.model.seconds)
+                                        connection.to.name + f' weights(Run:{self.network.N_runs})',
+                                        self.network.weight_values([connection.from_.idx, connection.to.idx]),
+                                        self.network.seconds)
             ### Groups spikes
             combined = {}
-            for group in self.model.network._groups:
-                spikes = self.model.spike_train[group.idx,timepoint-step:timepoint].sum()
-                self.writer.add_scalar('Spikes/' + group.name + f'(Run:{self.model.N_runs})',
+            for group in self.network.network._groups:
+                spikes = self.network.spike_train[group.idx,timepoint-step:timepoint].sum()
+                self.writer.add_scalar('Spikes/' + group.name + f'(Run:{self.network.N_runs})',
                         spikes,
-                        self.model.seconds)
+                        self.network.seconds)
                 combined[group.name] = spikes
             ### Combined
-            self.writer.add_scalars('Spikes/Combined',combined,self.model.seconds)                
+            self.writer.add_scalars('Spikes/Combined',combined,self.network.seconds)                
             ### EPSP/IPSP
-            if self.model.save_history:
-                for connection in self.model.network._connections:
-                    connections = self.model.adjacency_matrix[connection.from_.idx, connection.to.idx].sum(axis = 1)
-                    potential = (self.model.potential_history[connection.from_.idx,timepoint-step:timepoint] - self.model.u_rest).sum(axis = 1)
-                    EPSP = sum(connections * potential * self.model.excitatory_neurons[connection.from_.idx])
-                    IPSP = sum(connections * potential * self.model.inhibitory_neurons[connection.from_.idx])
-                    self.writer.add_scalar('EPSP/'+ connection.from_.name + ' to ' + connection.to.name+ f'(Run:{self.model.N_runs})',
-                                            EPSP, self.model.seconds) 
-                    self.writer.add_scalar('IPSP/'+ connection.from_.name + ' to ' + connection.to.name+ f'(Run:{self.model.N_runs})',
-                                            IPSP, self.model.seconds) 
+            if self.network.save_history:
+                for connection in self.network.network._connections:
+                    connections = self.network.adjacency_matrix[connection.from_.idx, connection.to.idx].sum(axis = 1)
+                    potential = (self.network.potential_history[connection.from_.idx,timepoint-step:timepoint] - self.network.u_rest).sum(axis = 1)
+                    EPSP = sum(connections * potential * self.network.excitatory_neurons[connection.from_.idx])
+                    IPSP = sum(connections * potential * self.network.inhibitory_neurons[connection.from_.idx])
+                    self.writer.add_scalar('EPSP/'+ connection.from_.name + ' to ' + connection.to.name+ f'(Run:{self.network.N_runs})',
+                                            EPSP, self.network.seconds) 
+                    self.writer.add_scalar('IPSP/'+ connection.from_.name + ' to ' + connection.to.name+ f'(Run:{self.network.N_runs})',
+                                            IPSP, self.network.seconds) 
