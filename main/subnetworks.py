@@ -87,10 +87,13 @@ class NeuronGroup:
         return self.weight[self.weight != 0]
 
     def excitetory_potential_change(self, span = slice(None)):
-        return (((self.potential_history[span,:] - self.neuronType.u_rest).sum(axis = 1))[self.excitatory_neurons]).sum()
+        return (((self.potential_history[:,span] - self.neuronType.u_rest).sum(axis = 1))[self.excitatory_neurons]).sum()
 
     def inhibitory_potential_change(self, span = slice(None)):
-        return (((self.potential_history[span,:] - self.neuronType.u_rest).sum(axis = 1))[self.inhibitory_neurons]).sum()
+        return (((self.potential_history[:,span] - self.neuronType.u_rest).sum(axis = 1))[self.inhibitory_neurons]).sum()
+
+
+
 class RandomConnections(NeuronGroup):
     _ids = count(0)
     def __init__(self, population_size, neuronType, connection_chance,
