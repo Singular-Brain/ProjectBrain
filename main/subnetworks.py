@@ -86,7 +86,11 @@ class NeuronGroup:
     def weight_values(self):
         return self.weight[self.weight != 0]
 
+    def excitetory_potential_change(self, span = None):
+        return (((self.potential_history[span,:] - self.neuronType.u_rest).sum(axis = 1))[self.excitetory_neurons]).sum()
 
+    def inhibitory_potential_change(self, span = None):
+        return (((self.potential_history[span,:] - self.neuronType.u_rest).sum(axis = 1))[self.inhibitory_neurons]).sum()
 class RandomConnections(NeuronGroup):
     _ids = count(0)
     def __init__(self, population_size, neuronType, connection_chance,
@@ -139,6 +143,11 @@ class Connection:
     def weight_values(self):
         return self.weight[self.weight != 0]
 
+    def EPSP(self, span = None):
+        return self.source.excitetory_potential_change(span)
+
+    def IPSP(self, span = None):
+        return self.source.inhibitory_potential_change(span)
 
 class RandomConnect(Connection,):
     _ids = count(0)
