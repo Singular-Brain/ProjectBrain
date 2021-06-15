@@ -137,9 +137,15 @@ class Connection(ABC):
     @property
     def weight_values(self):
         return self.weight[self.weight != 0]
-class RandomConnect(Connection):
-    def __init__(self, source, destination, connection_chance):
+
+
+class RandomConnect(Connection,):
+    _ids = count(0)
+    
+    def __init__(self, source, destination, connection_chance, name = None):
         super().__init__(source, destination)
+        self.id = next(self._ids)
+        self.name = f'random_connections_{self.id}' if name is None else name
         self.connection_chance = connection_chance
         self.adjacency_matrix = (torch.rand((self.source.N, self.destination.N), device = DEVICE) + connection_chance).int().bool()
         weights_values = torch.rand((self.source.N, self.destination.N), device = DEVICE)
