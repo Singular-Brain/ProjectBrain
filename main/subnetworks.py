@@ -86,10 +86,10 @@ class NeuronGroup:
     def weight_values(self):
         return self.weight[self.weight != 0]
 
-    def excitetory_potential_change(self, span = None):
-        return (((self.potential_history[span,:] - self.neuronType.u_rest).sum(axis = 1))[self.excitetory_neurons]).sum()
+    def excitetory_potential_change(self, span = slice(None)):
+        return (((self.potential_history[span,:] - self.neuronType.u_rest).sum(axis = 1))[self.excitatory_neurons]).sum()
 
-    def inhibitory_potential_change(self, span = None):
+    def inhibitory_potential_change(self, span = slice(None)):
         return (((self.potential_history[span,:] - self.neuronType.u_rest).sum(axis = 1))[self.inhibitory_neurons]).sum()
 class RandomConnections(NeuronGroup):
     _ids = count(0)
@@ -143,10 +143,10 @@ class Connection:
     def weight_values(self):
         return self.weight[self.weight != 0]
 
-    def EPSP(self, span = None):
+    def EPSP(self, span = slice(None)):
         return self.source.excitetory_potential_change(span)
 
-    def IPSP(self, span = None):
+    def IPSP(self, span = slice(None)):
         return self.source.inhibitory_potential_change(span)
 
 class RandomConnect(Connection,):
@@ -155,7 +155,7 @@ class RandomConnect(Connection,):
     def __init__(self, source, destination, connection_chance, name = None):
         super().__init__(source, destination)
         self.id = next(self._ids)
-        self.name = f'random_connections_{self.id}' if name is None else name
+        self.name = f'random_connect_{self.id}' if name is None else name
         self.connection_chance = connection_chance
         self.adjacency_matrix = (torch.rand((self.source.N, self.destination.N), device = DEVICE) + connection_chance).int().bool()
         weights_values = torch.rand((self.source.N, self.destination.N), device = DEVICE)
