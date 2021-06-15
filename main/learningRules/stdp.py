@@ -123,11 +123,11 @@ class STDP(LearningRule):
         group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) > 0] = -self.min_weight_value
         ### Hard bound:
         if self.excitatory_hardbound:
-            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < self.excitatory_hardbound(0)] = self.excitatory_hardbound(0)
-            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) > self.excitatory_hardbound(1)] = self.excitatory_hardbound(1)
+            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < self.excitatory_hardbound[0]] = self.excitatory_hardbound[0]
+            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) > self.excitatory_hardbound[1]] = self.excitatory_hardbound[1]
         if self.inhibitory_hardbound:    
-            group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound(0)] = self.inhibitory_hardbound(0)
-            group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound(1)] = self.inhibitory_hardbound(1)
+            group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound[0]] = self.inhibitory_hardbound[0]
+            group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound[1]] = self.inhibitory_hardbound[1]
 
 
     def release_dopamine(self, quantity):
