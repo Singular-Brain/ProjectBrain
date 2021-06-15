@@ -30,7 +30,7 @@ class STDP(LearningRule):
                 tau_dopamine = 0.2, tau_gaba = 0.2,  
                 dopamine_base = 0.002, gaba_base = 0,
                 tau_eligibility = 1, min_weight_value = 1E-5, 
-                inhibitory_hardbound = None, excitetory_hardbound = None,
+                inhibitory_hardbound = None, excitatory_hardbound = None,
                 plastic_inhibitory = True):
         """Spike-Timing-Dependent Plasticity learning rule
             Default values for `LTP_rate`, `LTD_rate`, `tau_LTP`, and `tau_LTD` are set based on: 
@@ -65,7 +65,7 @@ class STDP(LearningRule):
         self.tau_LTP = tau_LTP
         self.tau_LTD = tau_LTD
         self.plastic_inhibitory = plastic_inhibitory
-        self.excitetory_hardbound = excitetory_hardbound
+        self.excitatory_hardbound = excitatory_hardbound
         self.inhibitory_hardbound = inhibitory_hardbound
         self.min_weight_value = min_weight_value
         if not self.min_weight_value > 0:
@@ -122,9 +122,9 @@ class STDP(LearningRule):
         group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < 0] =  self.min_weight_value
         group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) > 0] = -self.min_weight_value
         ### Hard bound:
-        if self.excitetory_hardbound:
-            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < self.excitetory_hardbound(0)] = self.excitetory_hardbound(0)
-            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) > self.excitetory_hardbound(1)] = self.excitetory_hardbound(1)
+        if self.excitatory_hardbound:
+            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < self.excitatory_hardbound(0)] = self.excitatory_hardbound(0)
+            group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) > self.excitatory_hardbound(1)] = self.excitatory_hardbound(1)
         if self.inhibitory_hardbound:    
             group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound(0)] = self.inhibitory_hardbound(0)
             group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) < self.inhibitory_hardbound(1)] = self.inhibitory_hardbound(1)
