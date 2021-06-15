@@ -82,6 +82,9 @@ class NeuronGroup:
             self.current_history[:,timepoint] = self.current
         
 
+    @property
+    def weight_values(self):
+        return self.weight[self.weight != 0]
 
 
 class RandomConnections(NeuronGroup):
@@ -131,6 +134,9 @@ class Connection(ABC):
         self.dt = dt
         self.save_history = save_history
 
+    @property
+    def weight_values(self):
+        return self.weight[self.weight != 0]
 class RandomConnect(Connection):
     def __init__(self, source, destination, connection_chance):
         super().__init__(source, destination)
