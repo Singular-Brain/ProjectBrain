@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from math import ceil
 from itertools import count
 import torch
@@ -8,6 +7,7 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu' # set DEVICE
 
 class NeuronGroup:
     order = 0
+    type = 'Neuron Group'
 
     def __init__(self, neuronType, stochastic_spikes = True, base_current = 6E-11,
                  stochastic_function_tau = 1, stochastic_function_b = 1):
@@ -107,8 +107,9 @@ class RandomConnections(NeuronGroup):
         self.weights[self.inhibitory_neurons] *= -1
 
 
-class Connection(ABC):
+class Connection:
     order = 1
+    type = 'Connection'
 
     def __init__(self, source, destination):
         self.source = source
@@ -141,7 +142,7 @@ class Connection(ABC):
 
 class RandomConnect(Connection,):
     _ids = count(0)
-    
+
     def __init__(self, source, destination, connection_chance, name = None):
         super().__init__(source, destination)
         self.id = next(self._ids)
