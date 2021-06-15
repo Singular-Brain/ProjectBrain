@@ -98,8 +98,6 @@ class Network:
         self.callbacks.on_run_end(self.N_runs)
  
 
-
-
     def randomConnect(self, source, destination, connection_chance):
         self.connections.append(RandomConnect(source, destination, connection_chance))
 
@@ -114,3 +112,8 @@ class Network:
     def connectStimulus(self, group):
         assert isinstance(group,NeuronGroup), "Stimulus can only be connected to a group"
         self.groups_connected_to_stimulus.append(group)
+
+
+    @property
+    def seconds(self):
+        return round(self.timepoint * self.dt, 1)

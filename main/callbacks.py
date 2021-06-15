@@ -60,7 +60,16 @@ class Callback():
     @abstractmethod
     def on_timepoint_end(self, timepoint,):
         ...
-    
+
+    @abstractmethod
+    def on_subNetwork_start(self, subNetwork, timepoint,):
+        ... 
+
+    @abstractmethod
+    def on_subNetwork_end(self, subNetwork, timepoint,):
+        ... 
+
+
 
 class TensorBoard(Callback):
     def __init__(self, update_secs = None, log_dir = None,):
@@ -72,103 +81,113 @@ class TensorBoard(Callback):
         """
         super().__init__()
         from torch.utils.tensorboard import SummaryWriter
-        assert type(update_secs) == int, "" #TODO
+        assert type(update_secs) == int, "'update_secs' must be an integer"
         self.writer = SummaryWriter(log_dir =log_dir,)
         self.update_secs = update_secs
-
+        #TODO: use := notation to make it more pythonic after google Colab finally decided tp update its python version to something above 3.8.0 :\
 
 
     def on_run_start(self, N_runs,):# Initial state
         if self.update_secs:
-            ### Groups weights histogram
-            for group in self.network.network._groups:
-                if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
-                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.network.N_runs})', 
-                                            weight_values, 0)
-            ### Connections weights histogram
-            for connection in self.network.network._connections:
-                self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' +
-                                        connection.to.name + f' weights(Run:{self.network.N_runs})',
-                                        self.network.weight_values([connection.from_.idx, connection.to.idx]),
-                                        0)
+            self.step =int(self.update_secs/self.network.dt)
+            ### Weights histogram
+            for subNetwork in self.network.subNetworks:
+                excitetory_weight = subNetwork.weights[subNetwork.weights>0]
+                inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
+                if excitetory_weight.any():
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run:{N_runs})', 
+                                            excitetory_weight, 0)
+                if inhibitory_weight.any():
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run:{N_runs})', 
+                                              inhibitory_weight, 0)
+
         else:
             if N_runs == 1: 
-                ### Groups weights histogram
-                for group in self.network.network._groups:
-                    if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
-                        self.writer.add_histogram('Groups/' + group.name + ' weights', weight_values, 0)
-                ### Connections weights histogram
-                for connection in self.network.network._connections:
-                    self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' + connection.to.name,
-                                            self.network.weight_values([connection.from_.idx, connection.to.idx]),
-                                            0)
+                ### Weights histogram
+                for subNetwork in self.network.subNetworks:
+                    excitetory_weight = subNetwork.weights[subNetwork.weights>0]
+                    inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
+                    if excitetory_weight.any():
+                        self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory', 
+                                                  excitetory_weight, 0)
+                    if inhibitory_weight.any():
+                        self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory', 
+                                                  inhibitory_weight, 0)
 
 
     def on_run_end(self, N_runs,):
-        if not self.update_secs:
-            ### Groups weights histogram
-            for group in self.network.network._groups:
-                if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
-                    self.writer.add_histogram('Groups/' + group.name + ' weights', weight_values, N_runs)
-            ### Connections weights histogram
-            for connection in self.network.network._connections:
-                self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' + connection.to.name,
-                                        self.network.weight_values([connection.from_.idx, connection.to.idx]),
-                                        N_runs)
-            ### Groups spikes
+        if self.update_secs:
+            ### Weights histogram
+            for subNetwork in self.network.subNetworks:
+                excitetory_weight = subNetwork.weights[subNetwork.weights>0]
+                inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
+                if excitetory_weight.any():
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run:{N_runs})', 
+                                            excitetory_weight, self.network.seconds)
+                if inhibitory_weight.any():
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run:{N_runs})', 
+                                              inhibitory_weight, self.network.seconds)
+        else:
             combined = {}
-            for group in self.network.network._groups:
-                spikes = self.network.spike_train[group.idx,:].sum()
-                self.writer.add_scalar('Spikes/' + group.name,spikes,N_runs)
-                combined[group.name] = spikes
+            ### Weights histogram
+            for subNetwork in self.network.subNetworks:
+                excitetory_weight = subNetwork.weights[subNetwork.weights>0]
+                inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
+                if excitetory_weight.any():
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory', 
+                                                excitetory_weight, N_runs)
+                if inhibitory_weight.any():
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory', 
+                                                inhibitory_weight, N_runs)
+                ### Groups spikes
+                if subNetwork.type == "Neuron Group":
+                    spikes = subNetwork.spike_train.sum()
+                    self.writer.add_scalar('Spikes/' + subNetwork.name,spikes,N_runs)
+                    combined[subNetwork.name] = spikes
+                ### EPSP/IPSP
+                elif subNetwork.type == "Connection":
+                    if self.network.save_history:
+                        self.writer.add_scalar(f'EPSP/{subNetwork.name}',
+                                                subNetwork.EPSP(), N_runs) 
+                        self.writer.add_scalar(f'IPSP/{subNetwork.name}',
+                                                subNetwork.IPSP(), N_runs) 
             ### Combined
-            self.writer.add_scalars('Spikes/Combined',spikes,N_runs)
-            ### EPSP/IPSP
-            if self.network.save_history:
-                for connection in self.network.network._connections:
-                    connections = self.network.adjacency_matrix[connection.from_.idx, connection.to.idx].sum(axis = 1)
-                    potential = (self.network.potential_history[connection.from_.idx,:] - self.network.u_rest).sum(axis = 1)
-                    EPSP = sum(connections * potential * self.network.excitatory_neurons[connection.from_.idx])
-                    IPSP = sum(connections * potential * self.network.inhibitory_neurons[connection.from_.idx])
-                    self.writer.add_scalar('EPSP/'+ connection.from_.name + ' to ' + connection.to.name,
-                                            EPSP, N_runs) 
-                    self.writer.add_scalar('IPSP/'+ connection.from_.name + ' to ' + connection.to.name,
-                                            IPSP, N_runs) 
+            self.writer.add_scalars('Spikes/Combined',combined,N_runs)
 
-    def on_timepoint_end(self, timepoint): 
-        if self.update_secs and (
-            (timepoint>0 and timepoint%(step:=int(self.update_secs/self.network.dt)) ==0)
-            or timepoint==self.network.total_timepoints-1
-            ):
-            ### Groups weights histogram
-            for group in self.network.network._groups:
-                if (weight_values:=self.network.weight_values([group.idx, group.idx])).any():
-                    self.writer.add_histogram('Groups/' + group.name + f' weights(Run:{self.network.N_runs})', 
-                                            weight_values, self.network.seconds)
-            ### Connections weights histogram
-            for connection in self.network.network._connections:
-                self.writer.add_histogram('Connections/' + connection.from_.name + ' to ' +
-                                        connection.to.name + f' weights(Run:{self.network.N_runs})',
-                                        self.network.weight_values([connection.from_.idx, connection.to.idx]),
-                                        self.network.seconds)
+    def on_timepoint_start(self, timepoint):
+        if self.update_secs and timepoint>0 and timepoint%self.step ==0 and self.network.save_history:
+            self.combined_spikes = {}              
+
+    def on_subNetwork_end(self, subNetwork, timepoint): 
+        if self.update_secs and timepoint>0 and timepoint%self.step ==0:
+            ### Weights histogram
+            excitetory_weight = subNetwork.weights[subNetwork.weights>0]
+            inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
+            if excitetory_weight.any():
+                self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run:{self.network.N_runs})', 
+                                        excitetory_weight, self.network.seconds)
+            if inhibitory_weight.any():
+                self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run:{self.network.N_runs})', 
+                                            inhibitory_weight, self.network.seconds)
             ### Groups spikes
-            combined = {}
-            for group in self.network.network._groups:
-                spikes = self.network.spike_train[group.idx,timepoint-step:timepoint].sum()
-                self.writer.add_scalar('Spikes/' + group.name + f'(Run:{self.network.N_runs})',
-                        spikes,
-                        self.network.seconds)
-                combined[group.name] = spikes
-            ### Combined
-            self.writer.add_scalars('Spikes/Combined',combined,self.network.seconds)                
+            if subNetwork.type == "Neuron Group":
+                spikes = subNetwork.spike_train[:,timepoint-self.step:timepoint].sum()
+                self.writer.add_scalar(f'Spikes/{subNetwork.name}(Run:{self.network.N_runs})',spikes,
+                                    self.network.seconds)
+                self.combined_spikes[subNetwork.name] = spikes
             ### EPSP/IPSP
-            if self.network.save_history:
-                for connection in self.network.network._connections:
-                    connections = self.network.adjacency_matrix[connection.from_.idx, connection.to.idx].sum(axis = 1)
-                    potential = (self.network.potential_history[connection.from_.idx,timepoint-step:timepoint] - self.network.u_rest).sum(axis = 1)
-                    EPSP = sum(connections * potential * self.network.excitatory_neurons[connection.from_.idx])
-                    IPSP = sum(connections * potential * self.network.inhibitory_neurons[connection.from_.idx])
-                    self.writer.add_scalar('EPSP/'+ connection.from_.name + ' to ' + connection.to.name+ f'(Run:{self.network.N_runs})',
-                                            EPSP, self.network.seconds) 
-                    self.writer.add_scalar('IPSP/'+ connection.from_.name + ' to ' + connection.to.name+ f'(Run:{self.network.N_runs})',
-                                            IPSP, self.network.seconds) 
+            elif subNetwork.type == "Connection":
+                if self.network.save_history:
+                    self.writer.add_scalar(f'EPSP/{subNetwork.name}(Run:{self.network.N_runs})',
+                                            subNetwork.EPSP(slice(timepoint-self.step,timepoint)),
+                                            self.network.seconds) 
+                    self.writer.add_scalar(f'IPSP/{subNetwork.name}(Run:{self.network.N_runs})',
+                                            subNetwork.IPSP(slice(timepoint-self.step,timepoint)),
+                                            self.network.seconds) 
+
+
+
+    def on_timepoint_end(self, timepoint):
+        if self.update_secs and timepoint>0 and timepoint%self.step ==0 and self.network.save_history:
+            ### Combined Spikes
+            self.writer.add_scalars(f'Spikes/Combined(Run{self.network.N_runs})',self.combined_spikes,self.network.seconds)

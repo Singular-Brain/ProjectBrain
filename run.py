@@ -1,4 +1,3 @@
-import os
 import numpy as np
 from main.networks import Network
 from main.stimulus import frequency_based_current
@@ -19,12 +18,12 @@ class Model(Network):
         self.connectStimulus(layer2)
 
 
-# tensorboard = TensorBoard(update_secs = 1)
+tensorboard = TensorBoard(update_secs = 1)
 
 model = Model(dt= dt,
-              total_time = 4,
-              learning_rule = STDP(dopamine_base = 0.1),
-              callbacks = [],
+              total_time = 10,
+              learning_rule = STDP(dopamine_base = 0.001, excitatory_hardbound = (0,1)),
+              callbacks = [tensorboard],
               save_history = True,
                 )
 
