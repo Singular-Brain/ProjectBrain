@@ -9,18 +9,17 @@ class NeuronGroup:
     order = 0
     type = 'Neuron Group'
 
-    def __init__(self, neuronType, stochastic_spikes = True, base_current = 6E-11,
-                 stochastic_function_tau = 1, stochastic_function_b = 1):
+    def __init__(self, neuronType, base_current = 6E-11, stochastic_spikes = False,
+                 stochastic_function_tau = 1, stochastic_function_b = 1,):
         ### Neuron Type
         self.neuronType = neuronType
         ### neurons variables
         self.base_current = base_current
         self.stim_current = 0
-        ###  stochastic spike
+        ### stochastic spike
         self.stochastic_spikes = stochastic_spikes
         self.stochastic_function_tau = stochastic_function_tau
         self.stochastic_function_b = stochastic_function_b
-    
 
     def _reset(self, dt, total_timepoints, save_history):
         self.dt = dt
@@ -87,10 +86,10 @@ class NeuronGroup:
         return self.weight[self.weight != 0]
 
     def excitetory_potential_change(self, span = slice(None)):
-        return (((self.potential_history[:,span] - self.neuronType.u_rest).sum(axis = 1))[self.excitatory_neurons]).sum()
+        return (((self.potential_history[self.excitatory_neurons,span] - self.neuronType.u_rest).sum(axis = 1)))
 
     def inhibitory_potential_change(self, span = slice(None)):
-        return (((self.potential_history[:,span] - self.neuronType.u_rest).sum(axis = 1))[self.inhibitory_neurons]).sum()
+        return (((self.potential_history[self.inhibitory_neurons,span] - self.neuronType.u_rest).sum(axis = 1)))
 
 
 
@@ -123,6 +122,7 @@ class Connection:
         self.destination = destination
         self.excitatory_neurons = source.excitatory_neurons
         self.inhibitory_neurons = source.inhibitory_neurons
+        self.neuromodulator = False
 
     def _update_current(self,):
         new_currents = ((self.source.spikes.reshape(self.source.N,1) * self.weights).sum(axis = 0) * self.source.base_current).to(DEVICE)
@@ -147,10 +147,10 @@ class Connection:
         return self.weight[self.weight != 0]
 
     def EPSP(self, span = slice(None)):
-        return self.source.excitetory_potential_change(span)
+        return (self.source.excitetory_potential_change(span) * self.weights[self.source.excitatory_neurons].sum(axis = 1)).sum()
 
     def IPSP(self, span = slice(None)):
-        return self.source.inhibitory_potential_change(span)
+        return (self.source.inhibitory_potential_change(span) * self.weights[self.source.inhibitory_neurons].sum(axis = 1)).sum() * -1
 
 class RandomConnect(Connection,):
     _ids = count(0)

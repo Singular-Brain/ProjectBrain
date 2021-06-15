@@ -85,16 +85,19 @@ class Network:
             self.callbacks.on_timepoint_start(self.timepoint)
             for subNetwork in self.subNetworks:
                 subNetwork.stim_current = self._get_stimuli_current(subNetwork)
-                self.callbacks.on_subNetwork_start(subNetwork, self.timepoint)
+                self.callbacks.on_subnetwork_start(subNetwork, self.timepoint)
                 subNetwork._run_one_timepoint(self.timepoint)
-                self.callbacks.on_subNetwork_end(subNetwork, self.timepoint)
+                self.callbacks.on_subnetwork_end(subNetwork, self.timepoint)
             self.callbacks.on_timepoint_end(self.timepoint)
             ### handle external rewards with callbacks
             if self.learning_rule:
                 self.learning_rule.update_neuromodulators()
+                self.callbacks.on_learning_start(self.learning_rule, self.timepoint)
                 for subNetwork in self.subNetworks:
+                    self.callbacks.on_subnetwork_learning_start(subNetwork, self.learning_rule, self.timepoint)
                     self.learning_rule(subNetwork)
-                self.learning_rule.zero_released_neuromodulators()
+                    self.callbacks.on_subnetwork_learning_end(subNetwork, self.learning_rule, self.timepoint)
+                self.callbacks.on_learning_end(self.learning_rule, self.timepoint)
         self.callbacks.on_run_end(self.N_runs)
  
 

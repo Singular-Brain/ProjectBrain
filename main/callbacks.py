@@ -31,15 +31,36 @@ class CallbackList:
             for callback in self.callbacks:
                 callback.on_timepoint_end(timepoint)    
 
-    def on_subNetwork_start(self, subNetwork, timepoint):
+    def on_subnetwork_start(self, subNetwork, timepoint):
         if self.callbacks:
             for callback in self.callbacks:
-                callback.on_subNetwork_start(subNetwork, timepoint) 
+                callback.on_subnetwork_start(subNetwork, timepoint) 
 
-    def on_subNetwork_end(self, subNetwork, timepoint):
+    def on_subnetwork_end(self, subNetwork, timepoint):
         if self.callbacks:
             for callback in self.callbacks:
-                callback.on_subNetwork_end(subNetwork, timepoint) 
+                callback.on_subnetwork_end(subNetwork, timepoint) 
+
+    def on_learning_start(self, learning_rule, timepoint):
+        if self.callbacks:
+            for callback in self.callbacks:
+                callback.on_learning_start(learning_rule, timepoint)   
+
+    def on_learning_end(self, learning_rule, timepoint):
+        if self.callbacks:
+            for callback in self.callbacks:
+                callback.on_learning_start(learning_rule, timepoint)  
+
+    def on_subnetwork_learning_start(self, subNetwork, learning_rule, timepoint):
+        if self.callbacks:
+            for callback in self.callbacks:
+                callback.on_subnetwork_learning_start(subNetwork, learning_rule, timepoint) 
+
+    def on_subnetwork_learning_end(self, subNetwork, learning_rule, timepoint):
+        if self.callbacks:
+            for callback in self.callbacks:
+                callback.on_subnetwork_learning_end(subNetwork, learning_rule, timepoint) 
+
 
 class Callback():
     def setNetwork(self, network):
@@ -62,12 +83,28 @@ class Callback():
         ...
 
     @abstractmethod
-    def on_subNetwork_start(self, subNetwork, timepoint,):
+    def on_subnetwork_start(self, subNetwork, timepoint,):
         ... 
 
     @abstractmethod
-    def on_subNetwork_end(self, subNetwork, timepoint,):
+    def on_subnetwork_end(self, subNetwork, timepoint,):
         ... 
+
+    @abstractmethod
+    def on_learning_start(self, learning_rule, timepoint):
+        ...
+
+    @abstractmethod
+    def on_learning_end(self, learning_rule, timepoint):
+        ...
+ 
+    @abstractmethod
+    def on_subnetwork_learning_start(self, subNetwork, learning_rule, timepoint):
+        ...
+
+    @abstractmethod
+    def on_subnetwork_learning_end(self, subNetwork, learning_rule, timepoint):
+        ...
 
 
 
@@ -95,10 +132,10 @@ class TensorBoard(Callback):
                 excitetory_weight = subNetwork.weights[subNetwork.weights>0]
                 inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
                 if excitetory_weight.any():
-                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run:{N_runs})', 
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run{N_runs})', 
                                             excitetory_weight, 0)
                 if inhibitory_weight.any():
-                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run:{N_runs})', 
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run{N_runs})', 
                                               inhibitory_weight, 0)
 
         else:
@@ -122,13 +159,15 @@ class TensorBoard(Callback):
                 excitetory_weight = subNetwork.weights[subNetwork.weights>0]
                 inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
                 if excitetory_weight.any():
-                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run:{N_runs})', 
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run{N_runs})', 
                                             excitetory_weight, self.network.seconds)
                 if inhibitory_weight.any():
-                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run:{N_runs})', 
+                    self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run{N_runs})', 
                                               inhibitory_weight, self.network.seconds)
         else:
             combined = {}
+            EPSP = {}
+            IPSP = {}
             ### Weights histogram
             for subNetwork in self.network.subNetworks:
                 excitetory_weight = subNetwork.weights[subNetwork.weights>0]
@@ -145,49 +184,58 @@ class TensorBoard(Callback):
                     self.writer.add_scalar('Spikes/' + subNetwork.name,spikes,N_runs)
                     combined[subNetwork.name] = spikes
                 ### EPSP/IPSP
-                elif subNetwork.type == "Connection":
-                    if self.network.save_history:
-                        self.writer.add_scalar(f'EPSP/{subNetwork.name}',
-                                                subNetwork.EPSP(), N_runs) 
-                        self.writer.add_scalar(f'IPSP/{subNetwork.name}',
-                                                subNetwork.IPSP(), N_runs) 
+                elif subNetwork.type == "Connection" and self.network.save_history:
+                    EPSP[subNetwork.name] = subNetwork.EPSP()
+                    IPSP[subNetwork.name] = subNetwork.IPSP()
             ### Combined
             self.writer.add_scalars('Spikes/Combined',combined,N_runs)
+            ### Pre-Synaptic Potential
+            self.writer.add_scalars(f'Pre-Synaptic Potential/EPSP(Run{self.network.N_runs})',EPSP,N_runs)
+            self.writer.add_scalars(f'Pre-Synaptic Potential/IPSP(Run{self.network.N_runs})',IPSP,N_runs)
 
     def on_timepoint_start(self, timepoint):
         if self.update_secs and timepoint>0 and timepoint%self.step ==0 and self.network.save_history:
-            self.combined_spikes = {}              
+            self.combined_spikes = {}      
+            self.EPSP = {}
+            self.IPSP = {}        
 
-    def on_subNetwork_end(self, subNetwork, timepoint): 
+
+    def on_subnetwork_end(self, subNetwork, timepoint): 
         if self.update_secs and timepoint>0 and timepoint%self.step ==0:
             ### Weights histogram
             excitetory_weight = subNetwork.weights[subNetwork.weights>0]
             inhibitory_weight = subNetwork.weights[subNetwork.weights<0]
             if excitetory_weight.any():
-                self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run:{self.network.N_runs})', 
+                self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Excitatory(Run{self.network.N_runs})', 
                                         excitetory_weight, self.network.seconds)
             if inhibitory_weight.any():
-                self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run:{self.network.N_runs})', 
+                self.writer.add_histogram(f'Weights/{subNetwork.type}/{subNetwork.name}/Inhibitory(Run{self.network.N_runs})', 
                                             inhibitory_weight, self.network.seconds)
             ### Groups spikes
             if subNetwork.type == "Neuron Group":
                 spikes = subNetwork.spike_train[:,timepoint-self.step:timepoint].sum()
-                self.writer.add_scalar(f'Spikes/{subNetwork.name}(Run:{self.network.N_runs})',spikes,
+                self.writer.add_scalar(f'Spikes/{subNetwork.name}(Run{self.network.N_runs})',spikes,
                                     self.network.seconds)
                 self.combined_spikes[subNetwork.name] = spikes
             ### EPSP/IPSP
-            elif subNetwork.type == "Connection":
-                if self.network.save_history:
-                    self.writer.add_scalar(f'EPSP/{subNetwork.name}(Run:{self.network.N_runs})',
-                                            subNetwork.EPSP(slice(timepoint-self.step,timepoint)),
-                                            self.network.seconds) 
-                    self.writer.add_scalar(f'IPSP/{subNetwork.name}(Run:{self.network.N_runs})',
-                                            subNetwork.IPSP(slice(timepoint-self.step,timepoint)),
-                                            self.network.seconds) 
-
+            elif subNetwork.type == "Connection" and self.network.save_history:
+                self.EPSP[subNetwork.name] = subNetwork.EPSP()
+                self.IPSP[subNetwork.name] = subNetwork.IPSP()
 
 
     def on_timepoint_end(self, timepoint):
         if self.update_secs and timepoint>0 and timepoint%self.step ==0 and self.network.save_history:
             ### Combined Spikes
             self.writer.add_scalars(f'Spikes/Combined(Run{self.network.N_runs})',self.combined_spikes,self.network.seconds)
+            self.writer.add_scalars(f'Pre-Synaptic Potential/EPSP(Run{self.network.N_runs})',self.EPSP,self.network.seconds)
+            self.writer.add_scalars(f'Pre-Synaptic Potential/IPSP(Run{self.network.N_runs})',self.IPSP,self.network.seconds)
+
+
+    def on_learning_start(self,learning_rule, timepoint):
+        if self.update_secs and timepoint>0 and timepoint%self.step ==0:
+            self.writer.add_scalars(f'Neuromodulators/DA-GABA(Run{self.network.N_runs})',
+            {'DA':learning_rule.dopamine, 'GABA':learning_rule.gaba },
+            self.network.seconds)
+            self.writer.add_scalar(f'Neuromodulators/Global Neuromodulator(M)(Run{self.network.N_runs})',
+            learning_rule.M,
+            self.network.seconds)
