@@ -97,12 +97,9 @@ class STDP(LearningRule):
     def update_neuromodulators(self):
         self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + self.released_dopamine
         self.gaba += (-self.gaba/self.tau_gaba) * self.dt + self.released_gaba
-
         self.M = self.dopamine + self.dopamine_base + self.gaba + self.gaba_base
-
-    def zero_released_neuromodulators(self):
         self.released_dopamine = 0
-        self.released_gaba =0
+        self.released_gaba = 0
 
 
     def __call__(self, group,):
