@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import concurrent.futures
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -6,7 +7,7 @@ from .subnetworks import *
 from .callbacks import CallbackList
 # set DEVICE
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu' # set DEVICE
-print(f'Device is set to {DEVICE.upper()}')
+# print(f'Device is set to {DEVICE.upper()}')
  
 #set manual seed
 def manual_seed(seed):
@@ -24,7 +25,6 @@ class Network:
         self.groups_connected_to_stimulus = []
         self.architecture()
         self.subNetworks = sorted(self.groups + self.connections, key=lambda x: x.order)
-        ###
         self.dt = dt
         self.total_time = total_time
         self.N_runs = 0
@@ -75,6 +75,16 @@ class Network:
         for subNetwork in self.subNetworks:
             subNetwork._reset(self.dt, self.total_timepoints, self.save_history)
 
+    def _run_one_timepoint(self, subNetwork):
+        subNetwork.stim_current = self._get_stimuli_current(subNetwork)
+        self.callbacks.on_subnetwork_start(subNetwork, self.timepoint)
+        subNetwork._run_one_timepoint(self.timepoint)
+        self.callbacks.on_subnetwork_end(subNetwork, self.timepoint)
+
+    def _learn_one_timepoint(self, subNetwork):
+        self.callbacks.on_subnetwork_learning_start(subNetwork, self.learning_rule, self.timepoint)
+        self.learning_rule(subNetwork)
+        self.callbacks.on_subnetwork_learning_end(subNetwork, self.learning_rule, self.timepoint)
 
     def run(self, stimuli = None, progress_bar = False):
         self._reset()
@@ -84,22 +94,37 @@ class Network:
         else range(self.total_timepoints):
             self.callbacks.on_timepoint_start(self.timepoint)
             for subNetwork in self.subNetworks:
-                subNetwork.stim_current = self._get_stimuli_current(subNetwork)
-                self.callbacks.on_subnetwork_start(subNetwork, self.timepoint)
-                subNetwork._run_one_timepoint(self.timepoint)
-                self.callbacks.on_subnetwork_end(subNetwork, self.timepoint)
+                self._run_one_timepoint(subNetwork)
             self.callbacks.on_timepoint_end(self.timepoint)
             ### handle external rewards with callbacks
             if self.learning_rule:
                 self.learning_rule.update_neuromodulators()
                 self.callbacks.on_learning_start(self.learning_rule, self.timepoint)
                 for subNetwork in self.subNetworks:
-                    self.callbacks.on_subnetwork_learning_start(subNetwork, self.learning_rule, self.timepoint)
-                    self.learning_rule(subNetwork)
-                    self.callbacks.on_subnetwork_learning_end(subNetwork, self.learning_rule, self.timepoint)
+                    self._learn_one_timepoint(subNetwork)
                 self.callbacks.on_learning_end(self.learning_rule, self.timepoint)
         self.callbacks.on_run_end(self.N_runs)
- 
+
+    def run_multiprocessing(self, stimuli = None, progress_bar = False):
+        self._reset()
+        self._make_stimuli_adjacency(stimuli)
+        self.callbacks.on_run_start(self.N_runs)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            for self.timepoint in tqdm(range(self.total_timepoints)) if progress_bar \
+            else range(self.total_timepoints):
+                self.callbacks.on_timepoint_start(self.timepoint)
+                futures = [executor.submit(self._run_one_timepoint, args) for args in self.groups]
+                concurrent.futures.wait(futures, return_when = 'ALL_COMPLETED')
+                futures = [executor.submit(self._run_one_timepoint, args) for args in self.connections]
+                concurrent.futures.wait(futures, return_when = 'ALL_COMPLETED')
+                self.callbacks.on_timepoint_end(self.timepoint)
+                if self.learning_rule:
+                    self.learning_rule.update_neuromodulators()
+                    self.callbacks.on_learning_start(self.learning_rule, self.timepoint)
+                    futures = [executor.submit(self._learn_one_timepoint, args) for args in self.subNetworks]
+                    concurrent.futures.wait(futures, return_when = 'ALL_COMPLETED')
+                    self.callbacks.on_learning_end(self.learning_rule, self.timepoint)
+            self.callbacks.on_run_end(self.N_runs) 
 
     def randomConnect(self, source, destination, connection_chance):
         self.connections.append(RandomConnect(source, destination, connection_chance))
