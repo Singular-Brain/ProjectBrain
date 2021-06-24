@@ -8,11 +8,11 @@ from main.neuronTypes import LIF
 dt = 0.001
 stochastic_params = {'stochastic_spikes': True,
                      'stochastic_function_b': 1/0.013,
-                     'stochastic_function_tau': (np.exp(-1))/(dt*3)}
+                     'stochastic_function_tau': (np.exp(-1))/(dt*1)}
 class Model(Network):
     def architecture(self):
         scale_weight = 0.5
-        main = self.randomConnections(500, LIF(),  0.02, scale_factor = scale_weight, **stochastic_params,)
+        main = self.randomConnections(100, LIF(),  1, scale_factor = scale_weight, **stochastic_params,)
         label0 = self.randomConnections(50, LIF(), 0, name = '0', **stochastic_params)
         label1 = self.randomConnections(50, LIF(), 0, name = '1', **stochastic_params)
         self.randomConnect(main, label0, .1)
@@ -38,7 +38,7 @@ tensorboard = TensorBoard(update_secs = 1)
 reward = Reward(n_classes = 2, release_dopamine_per_spike = 0.004)
 
 model = Model(dt= dt,
-              total_time = 500,
+              total_time = 100,
               learning_rule = STDP(dopamine_base = 0.001, excitatory_hardbound = None),
               callbacks = [tensorboard, reward],
               save_history = True,
