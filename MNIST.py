@@ -55,11 +55,9 @@ model = Model(dt= dt,
 
 for epoch in range(N_EPOCHS):
     image, label = next(iter(train_loader))
-    print(image, label)
     image_stimuli = set()
     for neuron, pixel in enumerate(image.ravel()):
         if pixel.item():
             image_stimuli.add(frequency_based_current(dt, frequency =  20 * pixel.item(), amplitude = 1E-3, neurons = [neuron]))
-
     reward.set_label(label.item())
     model.run(stimuli = [image_stimuli], progress_bar = True)
