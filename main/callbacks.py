@@ -127,14 +127,14 @@ class TensorBoard(Callback):
 
     def on_run_start(self, N_runs,):
         # Save hyper-parameters
-        self.writer.add_text('Network', pprint.pformat(self.network.__dict__))
+        self.writer.add_text('Network', pprint.pformat(self.network.__dict__, indent=1, width=1))
         if self.network.learning_rule:
             self.writer.add_text(type(self.network.learning_rule).__name__, 
-                                 pprint.pformat(self.network.learning_rule.__dict__))
+                                 pprint.pformat(self.network.learning_rule.__dict__, indent=1, width=1))
         for group in self.network.groups:
-            self.writer.add_text(group.name, pprint.pformat(group.__dict__) + pprint.pformat(group.neuronType.__dict__))
+            self.writer.add_text('subNetworks/'+group.name, pprint.pformat(group.__dict__, indent=1, width=1) + pprint.pformat(group.neuronType.__dict__, indent=1, width=1))
         for connection in self.network.connections:
-            self.writer.add_text(connection.name, pprint.pformat(connection.__dict__))
+            self.writer.add_text('subNetworks/'+connection.name, pprint.pformat(connection.__dict__, indent=1, width=1))
         # Initial state
         if self.update_secs:
             self.step =int(self.update_secs/self.network.dt)
