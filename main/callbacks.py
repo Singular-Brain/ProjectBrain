@@ -228,8 +228,8 @@ class TensorBoard(Callback):
                 self.combined_spikes[subNetwork.name] = spikes
             ### EPSP/IPSP
             elif subNetwork.type == "Connection" and self.network.save_history:
-                self.EPSP[subNetwork.name] = subNetwork.EPSP()
-                self.IPSP[subNetwork.name] = subNetwork.IPSP()
+                self.EPSP[subNetwork.name] = subNetwork.EPSP(slice(timepoint-self.step,timepoint))
+                self.IPSP[subNetwork.name] = subNetwork.IPSP(slice(timepoint-self.step,timepoint))
 
 
     def on_timepoint_end(self, timepoint):
