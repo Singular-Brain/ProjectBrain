@@ -86,10 +86,10 @@ class NeuronGroup:
         return self.weight[self.weight != 0]
 
     def excitetory_potential_change(self, span = slice(None)):
-        return (((self.potential_history[self.excitatory_neurons,span] - self.neuronType.u_rest).sum(axis = 1)))
+        return (self.potential_history[self.excitatory_neurons,span] - self.neuronType.u_rest).sum(axis = 1)
 
     def inhibitory_potential_change(self, span = slice(None)):
-        return (((self.potential_history[self.inhibitory_neurons,span] - self.neuronType.u_rest).sum(axis = 1)))
+        return (self.potential_history[self.inhibitory_neurons,span] - self.neuronType.u_rest).sum(axis = 1)
 
 
 
