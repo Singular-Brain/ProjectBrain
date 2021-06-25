@@ -13,8 +13,7 @@ def manual_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-SEED = 2045
-#manual_seed(SEED) # We set the seed to 2045 because the Singularity is near!
+SEED = 2045 #manual_seed(SEED) # We set the seed to 2045 because the Singularity is near!
 
 class Network:
     def __init__(self, total_time, dt, learning_rule = None,
@@ -124,8 +123,9 @@ class Network:
                     self.callbacks.on_learning_end(self.learning_rule, self.timepoint)
             self.callbacks.on_run_end(self.N_runs) 
 
-    def randomConnect(self, source, destination, connection_chance):
-        self.connections.append(RandomConnect(source, destination, connection_chance))
+
+    def randomConnect(self, source, destination, connection_chance, name=None):
+        self.connections.append(RandomConnect(source, destination, connection_chance, name))
 
     def randomConnections(self, population_size, neuronType, connection_chance,
                           name = None, excitatory_ratio = 0.8, scale_factor = 1,
