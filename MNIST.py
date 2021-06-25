@@ -41,7 +41,7 @@ class Reward(Callback):
             learning_rule.release_dopamine(self.release_dopamine * subNetwork.spikes.sum())
 
 
-tensorboard = TensorBoard(update_secs = 1)
+tensorboard = TensorBoard()
 reward = Reward(n_classes = 2, release_dopamine_per_spike = 0.004)
 
 model = Model(dt= dt,

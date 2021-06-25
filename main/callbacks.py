@@ -240,10 +240,11 @@ class TensorBoard(Callback):
             self.writer.add_scalars(f'Pre-Synaptic Potential/IPSP(Run{self.network.N_runs})',self.IPSP,self.network.seconds)
 
 
-    def on_learning_start(self,learning_rule, timepoint):
-        if self.update_secs and timepoint>0 and timepoint%self.step ==0:
+    def on_learning_start(self, learning_rule, timepoint):
+        if self.update_secs and timepoint%self.step ==0:
             self.writer.add_scalars(f'Neuromodulators/DA-GABA(Run{self.network.N_runs})',
-            {'DA':learning_rule.dopamine, 'GABA':learning_rule.gaba },
+            {'DA':learning_rule.dopamine + learning_rule.dopamine_base,
+             'GABA':learning_rule.gaba + learning_rule.gaba_base },
             self.network.seconds)
             self.writer.add_scalar(f'Neuromodulators/Global Neuromodulator(M)(Run{self.network.N_runs})',
             learning_rule.M,

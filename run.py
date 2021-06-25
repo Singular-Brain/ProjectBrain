@@ -38,7 +38,7 @@ tensorboard = TensorBoard(update_secs = 1)
 reward = Reward(n_classes = 2, release_dopamine_per_spike = 0.004)
 
 model = Model(dt= dt,
-              total_time = 100,
+              total_time = 5,
               learning_rule = STDP(dopamine_base = 0.001, excitatory_hardbound = None),
               callbacks = [tensorboard, reward],
               save_history = True,
@@ -55,4 +55,4 @@ stimuli = [
 ]
 
 reward.set_label(0)
-model.run(progress_bar = True)
+model.run(progress_bar = False)

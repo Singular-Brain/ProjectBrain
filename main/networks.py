@@ -5,9 +5,8 @@ import numpy as np
 from tqdm import tqdm
 from .subnetworks import *
 from .callbacks import CallbackList
-# set DEVICE
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu' # set DEVICE
-# print(f'Device is set to {DEVICE.upper()}')
+print(f'Device is set to {DEVICE.upper()}')
  
 #set manual seed
 def manual_seed(seed):
@@ -96,7 +95,6 @@ class Network:
             for subNetwork in self.subNetworks:
                 self._run_one_timepoint(subNetwork)
             self.callbacks.on_timepoint_end(self.timepoint)
-            ### handle external rewards with callbacks
             if self.learning_rule:
                 self.learning_rule.update_neuromodulators()
                 self.callbacks.on_learning_start(self.learning_rule, self.timepoint)
