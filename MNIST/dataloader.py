@@ -2,8 +2,8 @@ import torch
 import torchvision
 
 n_epochs = 3
-batch_size_train = 64
-batch_size_test = 1000
+batch_size_train = 1
+batch_size_test = 1
 target_classes = (3,5)
 
 random_seed = 1
