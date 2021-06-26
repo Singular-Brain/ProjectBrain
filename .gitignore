@@ -6,3 +6,4 @@ debug.py
 *.npy
 tmp_*
 runs/
+*.prof
