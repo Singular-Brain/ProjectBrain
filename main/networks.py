@@ -16,17 +16,17 @@ def manual_seed(seed):
 SEED = 2045 #manual_seed(SEED) # We set the seed to 2045 because the Singularity is near!
 
 class Network:
-    def __init__(self, total_time, dt, learning_rule = None,
-                 callbacks = [], save_history = False):
-        self.groups = []
-        self.connections = []
-        self.groups_connected_to_stimulus = []
+    def __init__(self, total_time: float, dt: float, learning_rule = None,
+                 callbacks: list = [], save_history: bool = False):
+        self.groups: list = []
+        self.connections: list = []
+        self.groups_connected_to_stimulus: list = []
         self.architecture()
-        self.subNetworks = sorted(self.groups + self.connections, key=lambda x: x.order)
-        self.dt = dt
-        self.total_time = total_time
-        self.N_runs = 0
-        self.total_timepoints = int(total_time/dt)
+        self.subNetworks: list = sorted(self.groups + self.connections, key=lambda x: x.order)
+        self.dt: float = dt
+        self.total_time: float = total_time
+        self.N_runs: int = 0
+        self.total_timepoints: int = int(total_time/dt)
         ### callbacks
         if isinstance(callbacks, CallbackList):
             self.callbacks = callbacks
@@ -47,7 +47,7 @@ class Network:
     def architecture(self):
         ...
 
-    def _get_stimuli_current(self, subNetwork):
+    def _get_stimuli_current(self, subNetwork) -> torch.tensor:
         if not isinstance(subNetwork,NeuronGroup):
             return
         if subNetwork not in self.groups_connected_to_stimulus:
@@ -58,7 +58,7 @@ class Network:
         return torch.from_numpy(stimuli_current).to(DEVICE)
  
  
-    def _make_stimuli_adjacency(self, stimuli): #TODO: add a warning if there are stimulus but no groups_connected_to_stimulus
+    def _make_stimuli_adjacency(self, stimuli) -> None: #TODO: add a warning if there are stimulus but no groups_connected_to_stimulus
         if self.groups_connected_to_stimulus:
             assert type(stimuli)== list and len(stimuli) == len(self.groups_connected_to_stimulus), "Input 'stimuli' must be a list with the same length as the model's groups connected to stimulus."
             self.stimuli = zip(self.groups_connected_to_stimulus, stimuli)
@@ -68,23 +68,23 @@ class Network:
                 for i, stimulus in enumerate(stim):
                     group.StimuliAdjacency[stimulus.neurons, i] = True
 
-    def _reset(self):
+    def _reset(self) -> None:
         self.N_runs +=1
         for subNetwork in self.subNetworks:
             subNetwork._reset(self.dt, self.total_timepoints, self.save_history)
 
-    def _run_one_timepoint(self, subNetwork):
+    def _run_one_timepoint(self, subNetwork) -> None:
         subNetwork.stim_current = self._get_stimuli_current(subNetwork)
         self.callbacks.on_subnetwork_start(subNetwork, self.timepoint)
         subNetwork._run_one_timepoint(self.timepoint)
         self.callbacks.on_subnetwork_end(subNetwork, self.timepoint)
 
-    def _learn_one_timepoint(self, subNetwork):
+    def _learn_one_timepoint(self, subNetwork) -> None:
         self.callbacks.on_subnetwork_learning_start(subNetwork, self.learning_rule, self.timepoint)
         self.learning_rule(subNetwork)
         self.callbacks.on_subnetwork_learning_end(subNetwork, self.learning_rule, self.timepoint)
 
-    def run(self, stimuli = None, progress_bar = False):
+    def run(self, stimuli = None, progress_bar = False) -> None:
         self._reset()
         self._make_stimuli_adjacency(stimuli)
         self.callbacks.on_run_start(self.N_runs)
@@ -102,7 +102,7 @@ class Network:
                 self.callbacks.on_learning_end(self.learning_rule, self.timepoint)
         self.callbacks.on_run_end(self.N_runs)
 
-    def run_multiprocessing(self, stimuli = None, progress_bar = False):
+    def run_multiprocessing(self, stimuli = None, progress_bar = False) -> None:
         self._reset()
         self._make_stimuli_adjacency(stimuli)
         self.callbacks.on_run_start(self.N_runs)
@@ -124,18 +124,18 @@ class Network:
             self.callbacks.on_run_end(self.N_runs) 
 
 
-    def randomConnect(self, source, destination, connection_chance, name=None):
+    def randomConnect(self, source, destination, connection_chance, name=None) -> None:
         self.connections.append(RandomConnect(source, destination, connection_chance, name))
 
     def randomConnections(self, population_size, neuronType, connection_chance,
                           name = None, excitatory_ratio = 0.8, scale_factor = 1,
-                          **kwargs):
+                          **kwargs) -> RandomConnections:
         neuron_group = RandomConnections(population_size, neuronType, connection_chance, name,
                                              excitatory_ratio, scale_factor, **kwargs)
         self.groups.append(neuron_group)
         return neuron_group
 
-    def connectStimulus(self, group):
+    def connectStimulus(self, group) -> None:
         assert isinstance(group,NeuronGroup), "Stimulus can only be connected to a group"
         self.groups_connected_to_stimulus.append(group)
 
