@@ -54,5 +54,9 @@ stimuli = [
     },
 ]
 
-reward.set_label(0)
-model.run(progress_bar = False)
+def main() -> None:
+    reward.set_label(0)
+    model.run(progress_bar = True)
+    
+if __name__ == '__main__':
+    main()

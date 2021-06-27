@@ -152,6 +152,7 @@ class Connection:
     def IPSP(self, span = slice(None)):
         return (self.source.inhibitory_potential_change(span) * self.weights[self.source.inhibitory_neurons].sum(axis = 1)).sum() * -1
 
+
 class RandomConnect(Connection,):
     _ids = count(0)
 
@@ -164,7 +165,6 @@ class RandomConnect(Connection,):
         weights_values = torch.rand((self.source.N, self.destination.N), device = DEVICE)
         weights_values[self.source.inhibitory_neurons] *= -1
         self.weights = weights_values * self.adjacency_matrix
-
 
 
 

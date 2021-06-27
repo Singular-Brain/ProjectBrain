@@ -1,13 +1,10 @@
-from run import *
+from run import main as run_main
+import cProfile
+import pstats
 
-
-def main():
-    import cProfile
-    import pstats
-
+def main() -> None:
     with cProfile.Profile() as pr:
-        reward.set_label(0)
-        model.run(progress_bar = True)
+        run_main()
 
     stats = pstats.Stats(pr)
     stats.sort_stats(pstats.SortKey.TIME)

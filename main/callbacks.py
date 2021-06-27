@@ -118,7 +118,7 @@ class TensorBoard(Callback):
         """
         super().__init__()
         from torch.utils.tensorboard import SummaryWriter
-        # assert (type(update_secs) == int) or (update_secs is None), "'update_secs' must be an integer"
+        assert (type(update_secs) == int) or (update_secs is None), "'update_secs' must be an integer"
         self.writer = SummaryWriter(log_dir =log_dir,)
         self.update_secs = update_secs
         #TODO: use := notation to make it more pythonic after google Colab finally decided tp update its python version to something above 3.8.0 :\
