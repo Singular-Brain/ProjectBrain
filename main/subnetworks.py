@@ -15,23 +15,26 @@ class NeuronGroup:
         self.neuronType = neuronType
         ### neurons variables
         self.base_current = base_current
-        self.stim_current = 0
         ### stochastic spike
         self.stochastic_spikes = stochastic_spikes
         self.stochastic_function_tau = stochastic_function_tau
         self.stochastic_function_b = stochastic_function_b
+        ### these parameter will be set later
+        self.N:int = None
+        self.batch_size:int = None
+        self.stimuli_current:np.array = None
 
     def _reset(self, dt, total_timepoints, save_history):
         self.dt = dt
-        self.refractory = torch.ones(self.N, device = DEVICE) * 1000 #initialize at a high value
-        self.current = torch.zeros(self.N, device = DEVICE)
-        self.potential = torch.ones(self.N, device = DEVICE) * self.neuronType.u_rest
-        self.spikes = torch.zeros((self.N,1),dtype=torch.bool, device = DEVICE)
-        self.spike_train = torch.zeros((self.N, total_timepoints),dtype=torch.bool, device = DEVICE)
+        self.refractory = torch.ones((self.batch_size, self.N), device = DEVICE) * 1000 #initialize at a high value
+        self.current = torch.zeros((self.batch_size, self.N), device = DEVICE)
+        self.potential = torch.ones((self.batch_size, self.N), device = DEVICE) * self.neuronType.u_rest
+        self.spikes = torch.zeros((self.batch_size,self.N,1),dtype=torch.bool, device = DEVICE)
         self.save_history = save_history
         if save_history:
-            self.current_history = torch.zeros((self.N, total_timepoints), dtype= torch.float32, device = DEVICE)
-            self.potential_history = torch.zeros((self.N, total_timepoints), dtype= torch.float32, device = DEVICE)
+            self.spike_train = torch.zeros((self.batch_size, self.N, total_timepoints),dtype=torch.bool, device = DEVICE)
+            self.current_history = torch.zeros((self.batch_size, self.N, total_timepoints), dtype= torch.float32, device = DEVICE)
+            self.potential_history = torch.zeros((self.batch_size, self.N, total_timepoints), dtype= torch.float32, device = DEVICE)
 
 
     def _update_potential(self, repeat = 2):
@@ -44,9 +47,10 @@ class NeuronGroup:
             self.potential += (1/repeat) * self.neuronType(self.dt, self.potential, self.current)
 
 
-    def _update_current(self,):
-        new_currents = ((self.spikes.reshape(self.N,1) * self.weights).sum(axis = 0) * self.base_current).to(DEVICE)
-        self.current = (self.stim_current + new_currents) * (self.refractory >= (self.neuronType.tau_refractory/self.dt)) # implement current for open neurons 
+    def _update_current(self,timepoint):
+        stimuli_current = self.stimuli_current[...,timepoint] if self.stimuli_current is not None else 0
+        new_currents = ((self.spikes.unsqueeze(-1) * self.weights.repeat(self.batch_size,1,1)).sum(axis = 1) * self.base_current).to(DEVICE)
+        self.current = (stimuli_current + new_currents) * (self.refractory >= (self.neuronType.tau_refractory/self.dt)) # implement current for open neurons 
 
 
     def _stochastic_function(self,):
@@ -55,7 +59,7 @@ class NeuronGroup:
 
     def generate_spikes(self):
         if self.stochastic_spikes:
-            self.spikes = self._stochastic_function() > torch.rand(self.N, device =DEVICE)
+            self.spikes = self._stochastic_function() > torch.rand((self.batch_size, self.N), device =DEVICE)
         else:
             self.spikes = self.potential>self.neuronType.u_thresh   # torch.Size([N,])
         ### Reset spiked neurons' potential
@@ -69,16 +73,15 @@ class NeuronGroup:
         ### update potentials
         self._update_potential()  
         if self.save_history:
-            self.potential_history[:,timepoint] = self.potential
+            self.potential_history[...,timepoint] = self.potential
         ### Spikes 
         self.generate_spikes()
-        ### Spike train
-        self.spike_train[:,timepoint] = self.spikes
         ### Transfer currents + external sources
-        self._update_current()
-        ### save current
+        self._update_current(timepoint)
+        ### save current and spike train
         if self.save_history:
-            self.current_history[:,timepoint] = self.current
+            self.current_history[...,timepoint] = self.current
+            self.spike_train[...,timepoint] = self.spikes
         
 
     @property
@@ -125,7 +128,7 @@ class Connection:
         self.neuromodulator = False
 
     def _update_current(self,):
-        new_currents = ((self.source.spikes.reshape(self.source.N,1) * self.weights).sum(axis = 0) * self.source.base_current).to(DEVICE)
+        new_currents = ((self.source.spikes.unsqueeze(-1) * self.weights.repeat(self.batch_size, 1, 1)).sum(axis = 1) * self.source.base_current).to(DEVICE)
         self.current = new_currents * (self.destination.refractory >= (self.destination.neuronType.tau_refractory/self.dt)) # implement current for open neurons 
 
     def _run_one_timepoint(self, timepoint,):
@@ -135,7 +138,7 @@ class Connection:
         self.destination.current += self.current
         ### save current
         if self.save_history:
-            self.destination.current_history[:,timepoint] = self.destination.current
+            self.destination.current_history[...,timepoint] = self.destination.current
 
 
     def _reset(self, dt, total_timepoints, save_history):

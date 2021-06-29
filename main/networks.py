@@ -16,8 +16,9 @@ def manual_seed(seed):
 SEED = 2045 #manual_seed(SEED) # We set the seed to 2045 because the Singularity is near!
 
 class Network:
-    def __init__(self, total_time: float, dt: float, learning_rule = None,
-                 callbacks: list = [], save_history: bool = False):
+    def __init__(self, total_time: float, dt: float, batch_size:int = 1,
+                 learning_rule = None, callbacks: list = [],
+                 save_history: bool = False):
         self.groups: list = []
         self.connections: list = []
         self.groups_connected_to_stimulus: list = []
@@ -25,6 +26,7 @@ class Network:
         self.subNetworks: list = sorted(self.groups + self.connections, key=lambda x: x.order)
         self.dt: float = dt
         self.total_time: float = total_time
+        self.batch_size: int = batch_size
         self.N_runs: int = 0
         self.total_timepoints: int = int(total_time/dt)
         ### callbacks
@@ -34,6 +36,9 @@ class Network:
             self.callbacks = CallbackList(callbacks)
         for callback in callbacks:
             callback.setNetwork(self)
+        ### set sub-networks batch size
+        for subNetwork in self.subNetworks:
+            subNetwork.batch_size = self.batch_size
         ### online learning
         self.learning_rule = learning_rule
         if self.learning_rule:
@@ -47,26 +52,17 @@ class Network:
     def architecture(self):
         ...
 
-    def _get_stimuli_current(self, subNetwork) -> torch.tensor:
-        if not isinstance(subNetwork,NeuronGroup):
-            return
-        if subNetwork not in self.groups_connected_to_stimulus:
-            return 0
-        call_stimuli =  np.vectorize(lambda stim: stim(self.timepoint))
-        stimuli_output = call_stimuli(subNetwork.stimuli)
-        stimuli_current = (stimuli_output * subNetwork.StimuliAdjacency).sum(axis = 1)
-        return torch.from_numpy(stimuli_current).to(DEVICE)
- 
- 
-    def _make_stimuli_adjacency(self, stimuli) -> None: #TODO: add a warning if there are stimulus but no groups_connected_to_stimulus
-        if self.groups_connected_to_stimulus:
-            assert type(stimuli)== list and len(stimuli) == len(self.groups_connected_to_stimulus), "Input 'stimuli' must be a list with the same length as the model's groups connected to stimulus."
-            self.stimuli = zip(self.groups_connected_to_stimulus, stimuli)
-            for group, stim in self.stimuli:
-                group.stimuli = np.array(list(stim))
-                group.StimuliAdjacency = np.zeros((group.N, len(stim)),dtype=np.bool)
-                for i, stimulus in enumerate(stim):
-                    group.StimuliAdjacency[stimulus.neurons, i] = True
+    def _set_subNetworks_stimulus(self, stimuli) -> None:
+        if type(stimuli) == list:
+            assert len(stimuli) == len(self.groups_connected_to_stimulus), f"length stimuli (= {len(stimuli)}) is not compatible with the number of groups connected to stimuli (= {len(self.groups_connected_to_stimulus)})"
+            for i, stimulus, group in enumerate(zip(stimuli, self.groups_connected_to_stimulus)):
+                assert stimulus.shape == (self.batch_size, group.N, self.total_timepoints), f"Stimulus array number {i} is not of the correct shape. must be: (batch size, number of group neurons, total timepoints) -> {(self.batch_size, group.N, self.total_timepoints)}, but got: {stimulus.shape}"
+                group.stimuli_current = stimulus
+        else:
+            assert len(self.groups_connected_to_stimulus) ==1, f'stimuli must be a list of length of group connected to stimulus (= {len(self.groups_connected_to_stimulus)} for more than 1 connected group'
+            group = self.groups_connected_to_stimulus[0]
+            assert stimuli.shape == (self.batch_size, group.N, self.total_timepoints), f"Stimulus array is not of the correct shape. must be: (batch size, number of group neurons, total timepoints) -> {(self.batch_size, group.N, self.total_timepoints)}, but got: {stimuli.shape}"
+            group.stimuli_current = stimuli
 
     def _reset(self) -> None:
         self.N_runs +=1
@@ -74,7 +70,6 @@ class Network:
             subNetwork._reset(self.dt, self.total_timepoints, self.save_history)
 
     def _run_one_timepoint(self, subNetwork) -> None:
-        subNetwork.stim_current = self._get_stimuli_current(subNetwork)
         self.callbacks.on_subnetwork_start(subNetwork, self.timepoint)
         subNetwork._run_one_timepoint(self.timepoint)
         self.callbacks.on_subnetwork_end(subNetwork, self.timepoint)
@@ -86,7 +81,7 @@ class Network:
 
     def run(self, stimuli = None, progress_bar = False) -> None:
         self._reset()
-        self._make_stimuli_adjacency(stimuli)
+        self._set_subNetworks_stimulus(stimuli)
         self.callbacks.on_run_start(self.N_runs)
         for self.timepoint in tqdm(range(self.total_timepoints)) if progress_bar \
         else range(self.total_timepoints):

@@ -73,10 +73,10 @@ class STDP(LearningRule):
 
     def set_params(self, dt, group):
         self.dt = dt
-        group.STDP = torch.zeros_like(group.weights, dtype = torch.float32, device=DEVICE)
-        group.eligibility_trace = torch.zeros_like(group.weights, dtype = torch.float32, device = DEVICE)
+        group.STDP = torch.zeros((group.batch_size,) + group.weights.shape, dtype = torch.float32, device=DEVICE)
+        group.eligibility_trace = torch.zeros((group.batch_size,) + group.weights.shape, dtype = torch.float32, device = DEVICE)
         if isinstance(group, NeuronGroup):
-            group.STDP_trace = torch.zeros((group.N,1), device = DEVICE)
+            group.STDP_trace = torch.zeros((group.batch_size,group.N,1), device = DEVICE)
             group.decay_rate = (group.excitatory_neurons * (np.exp(-self.dt/self.tau_LTP)) + group.inhibitory_neurons *  (np.exp(-self.dt/self.tau_LTD))).reshape((group.N, 1))
 
     def _update_STDP(self, group):
@@ -84,15 +84,15 @@ class STDP(LearningRule):
         group.STDP.fill_(0)
         if isinstance(group, NeuronGroup):
             ### post-pre spikes (= pre-post connections)
-            group.STDP[group.spikes,:] = self.LTD_rate * group.adjacency_matrix[group.spikes,:] * group.STDP_trace.T
+            group.STDP[group.spikes] = self.LTD_rate * group.adjacency_matrix.repeat(group.batch_size,1,1)[group.spikes] * group.STDP_trace.transpose(-1,-2) #TODO: make adjacency_matrix_repeat for each group
             ### pre-post spikes (= post-pre connections)
-            group.STDP[:,group.spikes] = self.LTP_rate * group.adjacency_matrix[:,group.spikes] * group.STDP_trace 
+            group.STDP.transpose(-1,-2)[group.spikes] = self.LTP_rate * group.adjacency_matrix.T.repeat(group.batch_size,1,1)[group.spikes] * group.STDP_trace 
             #TODO: handle simultaneous pre-post spikes
         elif isinstance(group, Connection):
             ### post-pre spikes (= pre-post connections)
-            group.STDP[group.source.spikes,:] = self.LTD_rate * group.adjacency_matrix[group.source.spikes,:] * group.destination.STDP_trace.T
+            group.STDP[group.source.spikes] = self.LTD_rate * group.adjacency_matrix.repeat(group.batch_size,1,1)[group.source.spikes,] * group.destination.STDP_trace.T
             ### pre-post spikes (= post-pre connections)
-            group.STDP[:,group.destination.spikes]   = self.LTP_rate * group.adjacency_matrix[:,group.destination.spikes]   * group.source.STDP_trace 
+            group.STDP[:,group.destination.spikes] = self.LTP_rate * group.adjacency_matrix.T.repeat(group.batch_size,1,1)[:,group.destination.spikes] * group.source.STDP_trace 
 
     def update_neuromodulators(self):
         self.dopamine += (-self.dopamine/self.tau_dopamine ) * self.dt + self.released_dopamine
@@ -114,8 +114,8 @@ class STDP(LearningRule):
         ### Update eligibility trace
         group.eligibility_trace += (-group.eligibility_trace/self.tau_eligibility) * self.dt + group.STDP
         ### Update weights
-        group.weights += self.M * group.eligibility_trace
-        ### CHeck if any inhibitory/excitatory neuron's sign has been changed
+        group.weights += self.M * group.eligibility_trace.mean(0)
+        ### Check if any inhibitory/excitatory neuron's sign has been changed
         group.weights[(group.excitatory_neurons.unsqueeze(1) * group.weights) < 0] =  self.min_weight_value
         group.weights[(group.inhibitory_neurons.unsqueeze(1) * group.weights ) > 0] = -self.min_weight_value
         ### Hard bound:

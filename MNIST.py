@@ -1,5 +1,6 @@
 
 import numpy as np
+import torch
 from main.networks import Network
 from main.stimulus import frequency_based_current
 from main.learningRules.stdp import STDP
@@ -9,7 +10,7 @@ from MNIST.dataloader import train_loader
 
 N_EPOCHS = 10
 dt = 0.001 #s
-TOTAL_TIME = 5 #s
+TOTAL_TIME = 0.5 #s
 
 class Model(Network):
     def architecture(self):
@@ -46,6 +47,7 @@ reward = Reward(n_classes = 2, release_dopamine_per_spike = 0.004)
 
 model = Model(dt= dt,
               total_time = TOTAL_TIME,
+              batch_size = train_loader.batch_size,
               learning_rule = STDP(dopamine_base = 0.001,
                     excitatory_hardbound = (0,1), inhibitory_hardbound = (-1,0)),
               callbacks = [tensorboard, reward],
@@ -54,10 +56,9 @@ model = Model(dt= dt,
 
 
 for epoch in range(N_EPOCHS):
-    image, label = next(iter(train_loader))
-    image_stimuli = set()
-    for neuron, pixel in enumerate(image.ravel()):
-        if pixel.item():
-            image_stimuli.add(frequency_based_current(dt, frequency =  20 * pixel.item(), amplitude = 1E-3, neurons = [neuron]))
-    reward.set_label(label.item())
-    model.run(stimuli = [image_stimuli], progress_bar = True)
+    print(f'epoch: {epoch}')
+    for i, (images, labels) in enumerate(train_loader):
+        stimulus = torch.zeros((train_loader.batch_size, 28*28, model.total_timepoints), dtype= torch.float32)
+        stimulus[images.squeeze(1).view(train_loader.batch_size, 28*28).bool()] = torch.tensor(([1E-3] + [0] * 49) * 10, dtype = torch.float32)
+        reward.set_label(0)
+        model.run(stimuli = stimulus, progress_bar = True)

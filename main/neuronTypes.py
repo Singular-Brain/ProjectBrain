@@ -9,4 +9,4 @@ class LIF:
         self.tau_refractory = tau_refractory 
 
     def __call__(self,dt, potential, current):
-        return (-dt/self.tau_m)*(potential-self.u_rest) + dt * current / self.Cm
+        return dt * (((self.u_rest- potential)/self.tau_m) + (current / self.Cm))
