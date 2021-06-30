@@ -1,8 +1,2 @@
 # ProjectBrain
-## Test run time for Vectorized mode :
-```
-CPU numpy time:  33.72 s 
-GPU numpy time:  22.60 s 
-CPU torch time:  24.91 s 
-GPU torch time:   4.57 s
-```
+A python package based on PyTorch for implementing **Spiking Neural Networks (SNN)**. This project is developing and is **not** ready to use yet.
